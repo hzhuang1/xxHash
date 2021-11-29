@@ -2699,10 +2699,13 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(const XXH64_canonical_t* src
 #    include <immintrin.h>
 #  elif defined(__SSE2__)
 #    include <emmintrin.h>
-#  elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+#  elif (defined(__ARM_NEON__) || defined(__ARM_NEON)) \
+  && !(defined(__ARM_SVE__) || defined(__ARM_SVE))
 #    define inline __inline__  /* circumvent a clang bug */
 #    include <arm_neon.h>
 #    undef inline
+#  elif defined(__ARM_SVE__) || defined(__ARM_SVE)
+#    include <arm_sve.h>
 #  endif
 #elif defined(_MSC_VER)
 #  include <intrin.h>
@@ -2818,6 +2821,7 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
     XXH_AVX512 = 3,  /*!< AVX512 for Skylake and Icelake */
     XXH_NEON   = 4,  /*!< NEON for most ARMv7-A and all AArch64 */
     XXH_VSX    = 5,  /*!< VSX and ZVector for POWER8/z13 (64-bit) */
+    XXH_SVE    = 6,  /*!< SVE for ARMv8-A and ARMv9-A */
 };
 /*!
  * @ingroup tuning
@@ -2839,6 +2843,7 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
 #  define XXH_AVX512 3
 #  define XXH_NEON   4
 #  define XXH_VSX    5
+#  define XXH_SVE    6
 #endif
 
 #ifndef XXH_VECTOR    /* can be defined on command line */
@@ -2850,6 +2855,7 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
 #    define XXH_VECTOR XXH_SSE2
 #  elif defined(__GNUC__) /* msvc support maybe later */ \
   && (defined(__ARM_NEON__) || defined(__ARM_NEON)) \
+  && (!(defined(__ARM_SVE__) || defined(__ARM_SVE))) \
   && (defined(__LITTLE_ENDIAN__) /* We only support little endian NEON */ \
     || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 #    define XXH_VECTOR XXH_NEON
@@ -2857,6 +2863,11 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
      || (defined(__s390x__) && defined(__VEC__)) \
      && defined(__GNUC__) /* TODO: IBM XL */
 #    define XXH_VECTOR XXH_VSX
+#  elif defined(__GNUC__) /* msvc support maybe later */ \
+  && (defined(__ARM_SVE__) || defined(__ARM_SVE)) \
+  && (defined(__LITTLE_ENDIAN__) /* We only support little endian SVE */ \
+    || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+#    define XXH_VECTOR XXH_SVE
 #  else
 #    define XXH_VECTOR XXH_SCALAR
 #  endif
@@ -4012,7 +4023,8 @@ XXH_FORCE_INLINE XXH_TARGET_SSE2 void XXH3_initCustomSecret_sse2(void* XXH_RESTR
 
 #if (XXH_VECTOR == XXH_NEON)
 
-XXH_FORCE_INLINE void
+#if (NEON_UNIT == 8)
+/*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
                     const void* XXH_RESTRICT input,
                     const void* XXH_RESTRICT secret)
@@ -4048,6 +4060,134 @@ XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
         }
     }
 }
+#endif	/* NEON_UNIT == 8 */
+
+#if (NEON_UNIT == 16)
+XXH_FORCE_INLINE void
+XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
+                    const void* XXH_RESTRICT input,
+                    const void* XXH_RESTRICT secret)
+{
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
+    {
+        uint64x2_t* const xacc = (uint64x2_t *) acc;
+        /* We don't use a uint32x4_t pointer because it causes bus errors on ARMv7. */
+        uint16_t const* const xinput = (const uint16_t *) input;
+        uint16_t const* const xsecret  = (const uint16_t *) secret;
+
+        size_t i;
+        for (i=0; i < XXH_STRIPE_LEN / sizeof(uint64x2_t); i++) {
+            /* data_vec = xinput[i]; */
+            uint16x8_t data_vec    = vld1q_u16(xinput  + (i * 8));
+            /* key_vec  = xsecret[i];  */
+            uint16x8_t key_vec     = vld1q_u16(xsecret + (i * 8));
+            uint64x2_t data_key;
+            uint32x2_t data_key_lo, data_key_hi;
+            /* xacc[i] += swap(data_vec); */
+            uint64x2_t const data64  = vreinterpretq_u64_u16(data_vec);
+            uint64x2_t const swapped = vextq_u64(data64, data64, 1);
+            xacc[i] = vaddq_u64 (xacc[i], swapped);
+            /* data_key = data_vec ^ key_vec; */
+            data_key = vreinterpretq_u64_u16(veorq_u16(data_vec, key_vec));
+            /* data_key_lo = (uint32x2_t) (data_key & 0xFFFFFFFF);
+             * data_key_hi = (uint32x2_t) (data_key >> 32);
+             * data_key = UNDEFINED; */
+            XXH_SPLIT_IN_PLACE(data_key, data_key_lo, data_key_hi);
+            /* xacc[i] += (uint64x2_t) data_key_lo * (uint64x2_t) data_key_hi; */
+            xacc[i] = vmlal_u32 (xacc[i], data_key_lo, data_key_hi);
+
+        }
+    }
+}
+#endif	/* NEON_UNIT == 16 */
+
+#if (NEON_UNIT == 32)
+/*
+void
+XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
+                    const void* XXH_RESTRICT input,
+                    const void* XXH_RESTRICT secret)
+{
+    asm volatile (
+        "
+    );
+}
+*/
+/*XXH_FORCE_INLINE*/ void
+XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
+                    const void* XXH_RESTRICT input,
+                    const void* XXH_RESTRICT secret)
+{
+    {
+        uint64x2_t* const xacc = (uint64x2_t *) acc;
+#if 1
+        uint32_t const* const xinput = (const uint32_t *) input;
+	uint32_t const* const xsecret = (const uint32_t *) secret;
+        size_t i;
+        for (i=0; i < XXH_STRIPE_LEN / sizeof(uint64x2_t); i++) {
+        //for (i = 0; i < 1; i++) {
+            uint32x2x2_t data_vec  = vld2_u32(xinput + i);
+            uint32x2_t data_lo     = data_vec.val[0];
+            uint32x2_t data_hi     = data_vec.val[1];
+            uint32x2x2_t key_vec   = vld2_u32(xsecret + i);
+            uint32x2_t key_lo      = key_vec.val[0];
+            uint32x2_t key_hi      = key_vec.val[1];
+            xacc[i] = vmlal_u32(xacc[i], data_lo, data_hi);
+
+            key_lo = vrev64_u32(data_lo);
+            uint64x2_t tmp1 = vshll_n_u32(key_lo, 0);
+            tmp1 = vshlq_n_u64(tmp1, 32);
+            xacc[i] = vaddq_u64(xacc[i], tmp1);
+            
+            key_hi = vrev64_u32(data_hi);
+            uint64x2_t tmp2 = vshll_n_u32(key_hi, 0);
+            xacc[i] = vaddq_u64(xacc[i], tmp2);
+        }
+#endif
+    }
+}
+#if 0
+/*XXH_FORCE_INLINE*/ void
+XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
+                    const void* XXH_RESTRICT input,
+                    const void* XXH_RESTRICT secret)
+{
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
+    {
+        uint64x2_t* const xacc = (uint64x2_t *) acc;
+        /* We don't use a uint32x4_t pointer because it causes bus errors on ARMv7. */
+        uint32_t const* const xinput = (const uint32_t *) input;
+        //uint32_t const* const xsecret  = (const uint32_t *) secret;
+
+        size_t i;
+        //for (i=0; i < XXH_STRIPE_LEN / sizeof(uint64x2_t); i++) {
+	for (i = 0; i < 1; i++) {
+            /* data_vec = xinput[i]; */
+            uint32x2x2_t data_vec  = vld2_u32(xinput + i);
+	    uint32x2_t data_lo     = data_vec.val[0];
+	    uint32x2_t data_hi     = data_vec.val[1];
+	    (void)secret;
+	    xacc[i] = vmlal_u32(xacc[i], data_lo, data_hi);
+#if 0
+            /* key_vec  = xsecret[i];  */
+            uint32x2x2_t key_vec   = vld2_u32(xsecret + i);
+	    uint32x2_t key_lo      = key_vec.val[0];
+	    uint32x2_t key_hi      = key_vec.val[1];
+            /* data_key = data_vec ^ key_vec; */
+	    key_lo = veor_u32(key_lo, data_lo);
+	    key_hi = veor_u32(key_hi, data_hi);
+	    xacc[i] = vmlal_u32(xacc[i], key_lo, key_hi);
+	    uint32x2x2_t zip_vec_  = vzip_u32(data_lo, data_hi);
+	    uint32x4_t *zip_vec    = (uint32x4_t *)(void *)(&zip_vec_);
+	    uint32x4_t tmp_vec = vrev64q_u32(*zip_vec);
+	    uint64x2_t out_vec = vreinterpretq_u64_u32(tmp_vec);
+	    xacc[i] = vaddq_u64(xacc[i], out_vec);
+#endif
+        }
+    }
+}
+#endif
+#endif	/* NEON_UNIT == 32 */
 
 XXH_FORCE_INLINE void
 XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
@@ -4165,6 +4305,39 @@ XXH3_scrambleAcc_vsx(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
             xxh_u64x2 const prod_odd  = XXH_vec_mulo((xxh_u32x4)data_key, prime);
             xacc[i] = prod_odd + (prod_even << v32);
     }   }
+}
+
+#endif
+
+#if (XXH_VECTOR == XXH_SVE)
+
+XXH_FORCE_INLINE void
+XXH3_accumulate_512_sve(void* XXH_RESTRICT acc,
+                  const void* XXH_RESTRICT input,
+		  const void* XXH_RESTRICT secret)
+{
+    {
+        uint64_t i = 0;
+        uint64_t len;
+        uint8_t const* const xinput = (const uint8_t *) input;
+        uint8_t const* const xsecret = (const uint8_t *) secret;
+        svbool_t pg;
+
+        len = XXH_STRIPE_LEN / sizeof(uint64_t);
+        for (i = 0; i < len; i += svcntw()) {
+            pg = svwhilelt_b64(i, len);
+            /* data_vec = xinput[i]; */
+	    svuint64_t data_vec = svld1_vnum_u64(pg, xinput,  i);
+            /* key_vec  = xsecret[i];  */
+            svuint64_t key_vec  = svld1_vnum_u64(pg, xsecret, i);
+            /* xacc[i] += swap(data_vec); */
+	    svuint64_t data_key = sveor_u64_m(pg, data_vec, key_vec);
+	    svuint32_t data_lo, data_hi;
+	    xacc[i ^ 1] = svadd_u64_m(pg, xacc[i ^ 1], data_vec);
+	    XXH_SPLIT_IN_PLACE(data_key, data_lo, data_hi);
+	    xacc[i] = svmad_u64_m(pg, data_lo, data_hi, xacc[i]);
+	}
+    }
 }
 
 #endif
@@ -4306,6 +4479,11 @@ typedef void (*XXH3_f_initCustomSecret)(void* XXH_RESTRICT, xxh_u64);
 #define XXH3_scrambleAcc    XXH3_scrambleAcc_vsx
 #define XXH3_initCustomSecret XXH3_initCustomSecret_scalar
 
+#elif (XXH_VECTOR == XXH_SVE)
+
+#define XXH3_accumulate_512 XXH3_accumulate_512_sve
+#define XXH3_scrambleAcc    XXH3_scrambleAcc_scalar
+#define XXH3_initCustomSecret XXH3_initCustomSecret_scalar
 #else /* scalar */
 
 #define XXH3_accumulate_512 XXH3_accumulate_512_scalar
