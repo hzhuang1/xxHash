@@ -247,6 +247,7 @@ void vld2_05(void)
 	dump_128bit("OUT2", out2);
 }
 
+/* same as vld2_05 */
 void vld2_06(void)
 {
 	unsigned char in1[16], in2[16];
@@ -296,6 +297,7 @@ void vld2_06(void)
 	dump_128bit("OUT2", out2);
 }
 
+/* same as vld2_05 */
 void vld2_07(void)
 {
 	/* in */
@@ -513,6 +515,12 @@ void scalar_01(void)
 #define XXH_ACC_NB		(XXH_STRIPE_LEN / sizeof(xxh_u64))
 #define XXH_readLE64(c)		XXH_read64(c)
 
+#  define XXH_SPLIT_IN_PLACE(in, outLo, outHi)                                            \
+    do {                                                                                  \
+      (outLo) = vmovn_u64    (in);                                                        \
+      (outHi) = vshrn_n_u64  ((in), 32);                                                  \
+    } while (0)
+
 
 static xxh_u64 XXH_read64(const void* memPtr)
 {
@@ -527,7 +535,7 @@ XXH_mult32to64(xxh_u64 x, xxh_u64 y)
 	return (x & 0xFFFFFFFF) * (y & 0xFFFFFFFF);
 }
 
-XXH_FORCE_INLINE void
+/*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 		const void* XXH_RESTRICT input,
 		const void* XXH_RESTRICT secret)
@@ -544,6 +552,44 @@ XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 		xacc[i ^ 1] += data_val; /* swap adjacent lanes */
 		xacc[i] += XXH_mult32to64(data_key & 0xFFFFFFFF, data_key >> 32);
 	}
+}
+
+/*XXH_FORCE_INLINE*/ void
+XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
+                    const void* XXH_RESTRICT input,
+                    const void* XXH_RESTRICT secret)
+{
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
+    {
+        uint64x2_t* const xacc = (uint64x2_t *) acc;
+        /* We don't use a uint32x4_t pointer because it causes bus errors on ARMv7. */
+        uint8_t const* const xinput = (const uint8_t *) input;
+        uint8_t const* const xsecret  = (const uint8_t *) secret;
+
+        size_t i;
+        //for (i=0; i < XXH_STRIPE_LEN / sizeof(uint64x2_t); i++) {
+	for (i=0; i < 1; i++) {
+            /* data_vec = xinput[i]; */
+            uint8x16_t data_vec    = vld1q_u8(xinput  + (i * 16));
+            /* key_vec  = xsecret[i];  */
+            uint8x16_t key_vec     = vld1q_u8(xsecret + (i * 16));
+            uint64x2_t data_key;
+            uint32x2_t data_key_lo, data_key_hi;
+            /* xacc[i] += swap(data_vec); */
+            uint64x2_t const data64  = vreinterpretq_u64_u8(data_vec);
+            uint64x2_t const swapped = vextq_u64(data64, data64, 1);
+            xacc[i] = vaddq_u64 (xacc[i], swapped);
+            /* data_key = data_vec ^ key_vec; */
+            data_key = vreinterpretq_u64_u8(veorq_u8(data_vec, key_vec));
+            /* data_key_lo = (uint32x2_t) (data_key & 0xFFFFFFFF);
+             * data_key_hi = (uint32x2_t) (data_key >> 32);
+             * data_key = UNDEFINED; */
+            XXH_SPLIT_IN_PLACE(data_key, data_key_lo, data_key_hi);
+            /* xacc[i] += (uint64x2_t) data_key_lo * (uint64x2_t) data_key_hi; */
+            xacc[i] = vmlal_u32 (xacc[i], data_key_lo, data_key_hi);
+
+        }
+    }
 }
 
 void scalar_02(void)
@@ -568,6 +614,28 @@ void scalar_02(void)
 	dump_128bit("OUT2", out2);
 }
 
+void neon_01(void)
+{
+	/* in */
+	unsigned char in1[16], in2[16];
+	unsigned char out1[16], out2[16];
+	unsigned char *q1 = in1, *q2 = in2, *p1 = out1, *p2 = out2;
+	uint64_t tmp;
+
+	printf("Test in %s:\n", __func__);
+	init_buf(in1);
+	set_buf(in2, 0x55);
+	clear_buf(out1);
+	//set_buf(out1, 0x11);
+	clear_buf(out2);
+
+	XXH3_accumulate_512_neon((void *)out1, (void *)in1, (void *)in2);
+	dump_128bit("IN1", in1);
+	dump_128bit("IN2", in2);
+	dump_128bit("OUT1", out1);
+	dump_128bit("OUT2", out2);
+}
+
 int main(void)
 {
 	//uint128_t in = 0x1122334455667788aabbccddeeff;	// not exists
@@ -581,6 +649,6 @@ int main(void)
 	vrev64_02();
 	vld2_05();
 	vld2_06();
-	vld2_07();
+	neon_01();
 	return 0;
 }
