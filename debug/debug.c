@@ -1,5 +1,6 @@
 #include <arm_neon.h>
 #include <stdio.h>
+#include <string.h>
 
 void init_buf(unsigned char *buf)
 {
@@ -226,13 +227,13 @@ void vld2_05(void)
 		"umlal v2.2d, v5.2s, v6.2s\n"
 		/* reverse v0 */
 		"rev64 v4.2s, v0.2s\n"
-		"ushll v0.2d, v4.2s, #16\n"
-		"shl v4.2d, v0.2d, #16\n"
+		"ushll v0.2d, v4.2s, #0\n"
 		/* reverse v1 */
 		"rev64 v5.2s, v1.2s\n"
-		"ushll v1.2d, v5.2s, #0\n"
+		"ushll v1.2d, v5.2s, #16\n"
+		"shl v4.2d, v1.2d, #16\n"
 		/* combine revsered v0 and v1 together, and store in v4 */
-		"orr v3.16b, v4.16b, v1.16b\n"
+		"orr v3.16b, v4.16b, v0.16b\n"
 		"add v4.2d, v2.2d, v3.2d\n"
 		"str q2, [%3]\n"
 		"str q4, [%4]\n"
@@ -279,11 +280,11 @@ void vld2_06(void)
 
 	key_lo = vrev64_u32(data_lo);
 	uint64x2_t tmp1 = vshll_n_u32(key_lo, 0);
-	tmp1 = vshlq_n_u64(tmp1, 32);
 	xacc_vec = vaddq_u64(xacc_vec, tmp1);
 
 	key_hi = vrev64_u32(data_hi);
 	uint64x2_t tmp2 = vshll_n_u32(key_hi, 0);
+	tmp2 = vshlq_n_u64(tmp2, 32);
 	vst1q_u64((uint64_t *)out2, tmp2);
 	xacc_vec = vaddq_u64(xacc_vec, tmp2);
 
@@ -319,71 +320,17 @@ void vld2_07(void)
 		"eor v5.8b, v0.8b, v3.8b\n"
 		"eor v6.8b, v1.8b, v4.8b\n"
 		"umlal v2.2d, v5.2s, v6.2s\n"
-		/* reverse v0: 00AB --> B0A0 */
+		/* reverse v0: 00AB --> 0B0A */
 		"rev64 v4.2s, v0.2s\n"
 		"ushll v0.2d, v4.2s, #0\n"
-		"shl v4.2d, v0.2d, #32\n"
-		"add v4.2d, v2.2d, v4.2d\n"
-		/* reverse v3: 00CD --> 0D0C */
+		"add v4.2d, v2.2d, v0.2d\n"
+		/* reverse v3: 00CD --> D0C0 */
 		"rev64 v5.2s, v1.2s\n"
 		"ushll v1.2d, v5.2s, #0\n"
-		"add v4.2d, v4.2d, v1.2d\n"
+		"shl v2.2d, v1.2d, #32\n"
+		"add v4.2d, v4.2d, v2.2d\n"
 		"str q2, [%3]\n"
 		"str q4, [%4]\n"
-		: "=r"(tmp), "=r"(q1), "=r"(q2), "=r"(p1), "=r"(p2)
-		: "0"(tmp), "1"(q1), "2"(q2), "3"(p1), "4"(p2)
-		: "v0"
-	);
-	dump_128bit("IN1", in1);
-	dump_128bit("IN2", in2);
-	dump_128bit("OUT1", out1);
-	dump_128bit("OUT2", out2);
-}
-
-void vld2_08(void)
-{
-	/* in */
-	unsigned char in1[16], in2[16];
-	unsigned char out1[16], out2[16];
-	unsigned char *q1 = in1, *q2 = in2, *p1 = out1, *p2 = out2;
-	uint64_t tmp;
-
-	printf("Test in %s:\n", __func__);
-	init_buf(in1);
-	set_buf(in2, 0x55);
-	set_buf(out1, 0x11);
-	clear_buf(out2);
-	/* v1 is used only once. So it could be overwriten. */
-	asm volatile (
-		"mov %0, #0\n"
-		"dup v2.2d, %0\n"
-		/* split load */
-		"ld2 {v0.2s, v1.2s}, [%1]\n"
-		"ld2 {v3.2s, v4.2s}, [%2]\n"
-		"ldr q2, [%3]\n"
-		/* xor and multiply and accumulate on source q2 */
-		"eor v5.8b, v0.8b, v3.8b\n"
-		"eor v6.8b, v1.8b, v4.8b\n"
-		"umlal v1.2d, v5.2s, v6.2s\n"
-		/* reverse v0 */
-		"rev64 v4.2s, v0.2s\n"
-		"ushll v0.2d, v4.2s, #0\n"
-		"shl v4.2d, v0.2d, #32\n"
-		/* reverse v3 */
-		"rev64 v5.2s, v3.2s\n"
-		"ushll v3.2d, v5.2s, #0\n"
-		/* combine revsered v0 and v3 together, and store in v4 */
-		"orr v3.16b, v4.16b, v3.16b\n"
-		"add v4.2d, v1.2d, v3.2d\n"
-#if 1
-		"str q1, [%3]\n"
-		"str q4, [%4]\n"
-#endif
-#if 0
-		"add v0.2d, v1.2d, v0.2d\n"
-		"str q2, [%3]\n"
-		"str q0, [%4]\n"
-#endif
 		: "=r"(tmp), "=r"(q1), "=r"(q2), "=r"(p1), "=r"(p2)
 		: "0"(tmp), "1"(q1), "2"(q2), "3"(p1), "4"(p2)
 		: "v0"
@@ -526,7 +473,8 @@ void vrev64_02(void)
 	dump_128bit("OUT", out);
 }
 
-void scalar(void)
+/* just do the multiplication */
+void scalar_01(void)
 {
 	unsigned char in[16], out1[16], out2[16];
 	unsigned char *q = in, *p1 = out1, *p2 = out2;
@@ -554,13 +502,78 @@ void scalar(void)
 		(uint64_t)s1->v1 * (uint64_t)s2->v1);
 }
 
+#define XXH_FORCE_INLINE	inline
+#define XXH_ASSERT(c)		((void)0)
+#define xxh_u64			uint64_t
+#define xxh_u8			uint8_t
+#define XXH_RESTRICT		restrict
+#define XXH_ACC_ALIGN		16	/* 16*8 = 128 */
+#define XXH_STRIPE_LEN		64
+#define XXH_SECRET_CONSUME_RATE 8   /* nb of secret bytes consumed at each accumulation */
+#define XXH_ACC_NB		(XXH_STRIPE_LEN / sizeof(xxh_u64))
+#define XXH_readLE64(c)		XXH_read64(c)
+
+
+static xxh_u64 XXH_read64(const void* memPtr)
+{
+	xxh_u64 val;
+	memcpy(&val, memPtr, sizeof(val));
+	return val;
+}
+
+XXH_FORCE_INLINE xxh_u64
+XXH_mult32to64(xxh_u64 x, xxh_u64 y)
+{
+	return (x & 0xFFFFFFFF) * (y & 0xFFFFFFFF);
+}
+
+XXH_FORCE_INLINE void
+XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
+		const void* XXH_RESTRICT input,
+		const void* XXH_RESTRICT secret)
+{
+	xxh_u64* const xacc = (xxh_u64*) acc; /* presumed aligned */
+	const xxh_u8* const xinput  = (const xxh_u8*) input;  /* no alignment restriction */
+	const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
+	size_t i;
+	XXH_ASSERT(((size_t)acc & (XXH_ACC_ALIGN-1)) == 0);
+	//for (i=0; i < XXH_ACC_NB; i++) {
+	for (i=0; i < 2; i++) {
+		xxh_u64 const data_val = XXH_readLE64(xinput + 8*i);
+		xxh_u64 const data_key = data_val ^ XXH_readLE64(xsecret + i*8);
+		xacc[i ^ 1] += data_val; /* swap adjacent lanes */
+		xacc[i] += XXH_mult32to64(data_key & 0xFFFFFFFF, data_key >> 32);
+	}
+}
+
+void scalar_02(void)
+{
+	/* in */
+	unsigned char in1[16], in2[16];
+	unsigned char out1[16], out2[16];
+	unsigned char *q1 = in1, *q2 = in2, *p1 = out1, *p2 = out2;
+	uint64_t tmp;
+
+	printf("Test in %s:\n", __func__);
+	init_buf(in1);
+	set_buf(in2, 0x55);
+	clear_buf(out1);
+	//set_buf(out1, 0x11);
+	clear_buf(out2);
+
+	XXH3_accumulate_512_scalar((void *)out1, (void *)in1, (void *)in2);
+	dump_128bit("IN1", in1);
+	dump_128bit("IN2", in2);
+	dump_128bit("OUT1", out1);
+	dump_128bit("OUT2", out2);
+}
+
 int main(void)
 {
 	//uint128_t in = 0x1122334455667788aabbccddeeff;	// not exists
 	//uint64x2_t in = { 0x1122334455667788, 0xaabbccddeeff };
 
-	scalar();
-	//vld2_05();
+	scalar_02();
 	vext_01();
 	vushll_01();
 	vushll_02();
