@@ -22,8 +22,16 @@
       (outHi) = vshrn_n_u64  ((in), 32);                                                  \
     } while (0)
 
-typedef void (*ftest)(void* XXH_RESTRICT,
+#define XXH_PRIME32_1  0x9E3779B1U  /*!< 0b10011110001101110111100110110001 */
+#define XXH_PRIME32_2  0x85EBCA77U  /*!< 0b10000101111010111100101001110111 */
+#define XXH_PRIME32_3  0xC2B2AE3DU  /*!< 0b11000010101100101010111000111101 */
+#define XXH_PRIME32_4  0x27D4EB2FU  /*!< 0b00100111110101001110101100101111 */
+#define XXH_PRIME32_5  0x165667B1U  /*!< 0b00010110010101100110011110110001 */
+
+typedef void (*f_accum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT,
+		const void* XXH_RESTRICT);
+typedef void (*f_scrum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT);
 
 void init_buf(unsigned char *buf, int blen)
@@ -281,7 +289,7 @@ void vext_01(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1,
 	const void* XXH_RESTRICT in2)
 {
-	unsigned char *q = in1, *p = out;
+	unsigned char *q = (unsigned char *)in1, *p = out;
 
 	/* exchange lower 64bit and high 64bit of v0, and store in v2 */
 	asm volatile (
@@ -447,13 +455,14 @@ void svmad_05(void* XXH_RESTRICT out,
 		acc  = svld1_u64(pg, (uint64_t *)out + i);
 		data = svld1_u64(pg, (uint64_t *)in1 + i);
 		key  = svld1_u64(pg, (uint64_t *)in2 + i);
-		mix  = sveor_u64_z(pg, data, key); 
-		mix_hi = svlsr_u64_z(pg, mix, shift);
-		mix_lo = svextw_u64_z(pg, mix);
-		mix = svmad_u64_z(pg, mix_lo, mix_hi, acc);
+		mix  = sveor_u64_m(pg, data, key); 
+		mix_hi = svlsr_u64_m(pg, mix, shift);
+		mix_lo = svand_n_u64_m(pg, mix, 0xffffffff);
+		//mix_lo = svextw_u64_z(pg, mix);
+		mix = svmad_u64_m(pg, mix_lo, mix_hi, acc);
 		/* reorder all elements in one vector by new index value */
 		swapped = svtbl_u64(data, idx);
-		acc = svadd_u64_z(pg, swapped, mix);
+		acc = svadd_u64_m(pg, swapped, mix);
 		svst1(pg, (uint64_t *)out + i, acc);
 	}
 }
@@ -487,22 +496,25 @@ void svidx_01(void* XXH_RESTRICT out,
 	}
 }
 
-#define XXH_FORCE_INLINE	inline
-#define XXH_ASSERT(c)		((void)0)
-#define xxh_u64			uint64_t
-#define xxh_u8			uint8_t
-#define XXH_RESTRICT		restrict
-#define XXH_ACC_ALIGN		16	/* 16*8 = 128 */
-#define XXH_STRIPE_LEN		64
-#define XXH_SECRET_CONSUME_RATE 8   /* nb of secret bytes consumed at each accumulation */
-#define XXH_ACC_NB		(XXH_STRIPE_LEN / sizeof(xxh_u64))
-#define XXH_readLE64(c)		XXH_read64(c)
+void scrum_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in)
+{
+	svuint64_t xin, acc, data;
+	svbool_t pg;
+	int i, len;
 
-#  define XXH_SPLIT_IN_PLACE(in, outLo, outHi)                                            \
-    do {                                                                                  \
-      (outLo) = vmovn_u64    (in);                                                        \
-      (outHi) = vshrn_n_u64  ((in), 32);                                                  \
-    } while (0)
+	len = XXH_ACC_NB;
+	for (i = 0; i < len; i += svcntd()) {
+		pg = svwhilelt_b64(i, len);
+		xin  = svld1_u64(pg, (uint64_t *)in + i);
+		acc  = svld1_u64(pg, (uint64_t *)out + i);
+		data = svlsr_n_u64_m(pg, acc, 47);
+		acc  = sveor_u64_m(pg, xin, acc); 
+		acc = sveor_u64_m(pg, data, acc);
+		acc = svmul_n_u64_m(pg, acc, XXH_PRIME32_1);
+		svst1(pg, (uint64_t *)out + i, acc);
+	}
+}
 
 
 static xxh_u64 XXH_read64(const void* memPtr)
@@ -518,26 +530,12 @@ XXH_mult32to64(xxh_u64 x, xxh_u64 y)
 	return (x & 0xFFFFFFFF) * (y & 0xFFFFFFFF);
 }
 
-#if 0
-/*XXH_FORCE_INLINE*/ void
-XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
-		const void* XXH_RESTRICT input,
-		const void* XXH_RESTRICT secret)
+XXH_FORCE_INLINE xxh_u64 XXH_xorshift64(xxh_u64 v64, int shift)
 {
-	xxh_u64* const xacc = (xxh_u64*) acc; /* presumed aligned */
-	const xxh_u8* const xinput  = (const xxh_u8*) input;  /* no alignment restriction */
-	const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
-	size_t i;
-	XXH_ASSERT(((size_t)acc & (XXH_ACC_ALIGN-1)) == 0);
-	//for (i=0; i < XXH_ACC_NB; i++) {
-	for (i=0; i < 2; i++) {
-		xxh_u64 const data_val = XXH_readLE64(xinput + 8*i);
-		xxh_u64 const data_key = data_val ^ XXH_readLE64(xsecret + i*8);
-		xacc[i ^ 1] += data_val; /* swap adjacent lanes */
-		xacc[i] += XXH_mult32to64(data_key & 0xFFFFFFFF, data_key >> 32);
-	}
+    XXH_ASSERT(0 <= shift && shift < 64);
+    return v64 ^ (v64 >> shift);
 }
-#else
+
 /*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 		const void* XXH_RESTRICT input,
@@ -556,7 +554,23 @@ XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 		xacc[i] += XXH_mult32to64(data_key & 0xFFFFFFFF, data_key >> 32);
 	}
 }
-#endif
+
+/*XXH_FORCE_INLINE*/ void
+XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
+{
+    xxh_u64* const xacc = (xxh_u64*) acc;   /* presumed aligned */
+    const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
+    size_t i;
+    XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
+    for (i=0; i < XXH_ACC_NB; i++) {
+        xxh_u64 const key64 = XXH_readLE64(xsecret + 8*i);
+        xxh_u64 acc64 = xacc[i];
+        acc64 = XXH_xorshift64(acc64, 47);
+        acc64 ^= key64;
+        acc64 *= XXH_PRIME32_1;
+        xacc[i] = acc64;
+    }
+}
 
 /*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
@@ -596,7 +610,60 @@ XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
     }
 }
 
-void test(char *name, ftest fn, int bits)
+/*XXH_FORCE_INLINE*/ void
+XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
+{
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
+
+    {   uint64x2_t* xacc       = (uint64x2_t*) acc;
+        uint8_t const* xsecret = (uint8_t const*) secret;
+        uint32x2_t prime       = vdup_n_u32 (XXH_PRIME32_1);
+
+        size_t i;
+        for (i=0; i < XXH_STRIPE_LEN/sizeof(uint64x2_t); i++) {
+            /* xacc[i] ^= (xacc[i] >> 47); */
+            uint64x2_t acc_vec  = xacc[i];
+            uint64x2_t shifted  = vshrq_n_u64 (acc_vec, 47);
+            uint64x2_t data_vec = veorq_u64   (acc_vec, shifted);
+
+            /* xacc[i] ^= xsecret[i]; */
+            uint8x16_t key_vec  = vld1q_u8(xsecret + (i * 16));
+            uint64x2_t data_key = veorq_u64(data_vec, vreinterpretq_u64_u8(key_vec));
+
+            /* xacc[i] *= XXH_PRIME32_1 */
+            uint32x2_t data_key_lo, data_key_hi;
+            /* data_key_lo = (uint32x2_t) (xacc[i] & 0xFFFFFFFF);
+             * data_key_hi = (uint32x2_t) (xacc[i] >> 32);
+             * xacc[i] = UNDEFINED; */
+            XXH_SPLIT_IN_PLACE(data_key, data_key_lo, data_key_hi);
+            {   /*
+                 * prod_hi = (data_key >> 32) * XXH_PRIME32_1;
+                 *
+                 * Avoid vmul_u32 + vshll_n_u32 since Clang 6 and 7 will
+                 * incorrectly "optimize" this:
+                 *   tmp     = vmul_u32(vmovn_u64(a), vmovn_u64(b));
+                 *   shifted = vshll_n_u32(tmp, 32);
+                 * to this:
+                 *   tmp     = "vmulq_u64"(a, b); // no such thing!
+                 *   shifted = vshlq_n_u64(tmp, 32);
+                 *
+                 * However, unlike SSE, Clang lacks a 64-bit multiply routine
+                 * for NEON, and it scalarizes two 64-bit multiplies instead.
+                 *
+                 * vmull_u32 has the same timing as vmul_u32, and it avoids
+                 * this bug completely.
+                 * See https://bugs.llvm.org/show_bug.cgi?id=39967
+                 */
+                uint64x2_t prod_hi = vmull_u32 (data_key_hi, prime);
+                /* xacc[i] = prod_hi << 32; */
+                xacc[i] = vshlq_n_u64(prod_hi, 32);
+                /* xacc[i] += (prod_hi & 0xFFFFFFFF) * XXH_PRIME32_1; */
+                xacc[i] = vmlal_u32(xacc[i], data_key_lo, prime);
+            }
+    }   }
+}
+
+void test_accum(char *name, f_accum fn, int bits)
 {
 	void *in1, *in2, *out1;
 	int bytes;
@@ -639,9 +706,43 @@ out_in1:
 	return;
 }
 
+void test_scrum(char *name, f_scrum fn, int bits)
+{
+	void *in1, *out1;
+	int bytes;
+
+	if (bits < 0)
+		return;
+	bytes = (bits + 7) >> 3;
+	in1 = malloc(bytes);
+	if (!in1) {
+		printf("Not enough memory for in1 (%d-bit)!\n", bits);
+		goto out_in1;
+	}
+	out1 = malloc(bytes);
+	if (!out1) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_out1;
+	}
+
+	printf("Test in %s\n", name);
+	init_buf(in1, bits);
+	set_buf(out1, 0x55, bits);
+	fn(out1, in1);
+	dump_bits("IN1", in1, bits);
+	dump_bits("OUT1", out1, bits);
+	free(in1);
+	free(out1);
+	return;
+out_out1:
+	free(in1);
+out_in1:
+	return;
+}
+
 #define LOOP_CNT	10000000
 
-void perf(char *name, ftest fn)
+void perf_accum(char *name, f_accum fn)
 {
 	unsigned char in1[64], in2[64];
 	unsigned char out1[64];
@@ -664,30 +765,58 @@ void perf(char *name, ftest fn)
 		(ue - us) % 1000000000);
 }
 
+void perf_scrum(char *name, f_scrum fn)
+{
+	unsigned char in1[64];
+	unsigned char out1[64];
+	struct timespec start, end;
+	uint64_t us, ue;
+	int i;
+
+	printf("Test %s ", name);
+	init_buf(in1, 512);
+	clear_buf(out1, 512);
+	clock_gettime(CLOCK_REALTIME, &start);
+	for (i = 0; i < LOOP_CNT; i++)
+		fn(out1, in1);
+	clock_gettime(CLOCK_REALTIME, &end);
+	ue = end.tv_nsec + end.tv_sec * 1000000000;
+	us = start.tv_nsec + start.tv_sec * 1000000000; 
+	printf("costs %ld sec and %ld nsec\n",
+		(ue - us) / 1000000000,
+		(ue - us) % 1000000000);
+}
+
 int main(void)
 {
 #if 0
-	test("svld1_01", svld1_01);
-	test("svld1_02", svld1_02);
+	test_accum("svld1_01", svld1_01);
+	test_accum("svld1_02", svld1_02);
 #endif
-	//test("svswap_01", svswap_01);
-	//test("svswap_02", svswap_02);
-	//test("svmad_02", svmad_02, 2048);
-	test("svmad_04", svmad_04, 1024);
-	test("svmad_05", svmad_05, 1024);
-	//test("svidx_01", svidx_01, 2048);
-	//test("svlsl_01", svlsl_01);
+	//test_accum("svswap_01", svswap_01);
+	//test_accum("svswap_02", svswap_02);
+	//test_accum("svmad_02", svmad_02, 2048);
+	//test_accum("svmad_04", svmad_04, 1024);
+	test_accum("svmad_05", svmad_05, 1024);
+	//test_accum("svidx_01", svidx_01, 2048);
+	//test_accum("svlsl_01", svlsl_01);
 #if defined(__ARM_SVE2__) || defined(__ARM_SVE2)
-	//test("svxar_01", svxar_01);
+	//test_accum("svxar_01", svxar_01);
 #endif
-	//test("svext_01", svext_01, 512);
-	//test("svrev_01", svrev_01, 2048);
-	//test("vext_01", vext_01);
-	//test("scalar", XXH3_accumulate_512_scalar, 1024);
-	//test("neon", XXH3_accumulate_512_neon, 1024);
-	perf("svmad_04", svmad_04);
-	perf("svmad_05", svmad_05);
-	//perf("scalar", XXH3_accumulate_512_scalar);
-	//perf("neon", XXH3_accumulate_512_neon);
+	//test_accum("svext_01", svext_01, 512);
+	//test_accum("svrev_01", svrev_01, 2048);
+	//test_accum("vext_01", vext_01);
+	test_accum("scalar", XXH3_accumulate_512_scalar, 512);
+	//test_accum("neon", XXH3_accumulate_512_neon, 512);
+	//perf_accum("svmad_04", svmad_04);
+	perf_accum("svmad_05", svmad_05);
+	perf_accum("scalar", XXH3_accumulate_512_scalar);
+	perf_accum("neon", XXH3_accumulate_512_neon);
+	test_scrum("scrum_01", scrum_01, 1024);
+	test_scrum("scalar", XXH3_scrambleAcc_scalar, 512);
+	//test_scrum("neon", XXH3_scrambleAcc_neon, 512);
+	perf_scrum("scrum_01", scrum_01);
+	perf_scrum("scalar", XXH3_scrambleAcc_scalar);
+	perf_scrum("neon", XXH3_scrambleAcc_neon);
 	return 0;
 }
