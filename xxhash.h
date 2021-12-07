@@ -4217,6 +4217,28 @@ XXH3_accumulate_512_sve(void* XXH_RESTRICT acc,
         }
     }
 }
+
+XXH_FORCE_INLINE void
+XXH3_scrambleAcc_sve(void* XXH_RESTRICT acc,
+               const void* XXH_RESTRICT secret)
+{
+    svuint64_t xin, acc, data;
+    svbool_t pg;
+    int i, len;
+
+    XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
+    len = XXH_ACC_NB;
+    for (i = 0; i < len; i += svcntd()) {
+        pg = svwhilelt_b64(i, len);
+        xin  = svld1_u64(pg, (uint64_t *)in + i);
+        acc  = svld1_u64(pg, (uint64_t *)out + i);
+        data = svlsr_n_u64_m(pg, acc, 47);
+        acc  = sveor_u64_m(pg, xin, acc); 
+        acc = sveor_u64_m(pg, data, acc);
+        acc = svmul_n_u64_m(pg, acc, XXH_PRIME32_1);
+        svst1(pg, (uint64_t *)out + i, acc);
+    }
+}
 #endif
 
 /* scalar variants - universal */
@@ -4359,7 +4381,7 @@ typedef void (*XXH3_f_initCustomSecret)(void* XXH_RESTRICT, xxh_u64);
 #elif (XXH_VECTOR == XXH_SVE)
 
 #define XXH3_accumulate_512 XXH3_accumulate_512_sve
-#define XXH3_scrambleAcc    XXH3_scrambleAcc_scalar
+#define XXH3_scrambleAcc    XXH3_scrambleAcc_sve
 #define XXH3_initCustomSecret XXH3_initCustomSecret_scalar
 #else /* scalar */
 
