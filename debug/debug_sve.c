@@ -2,6 +2,7 @@
 #include <arm_sve.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <time.h>
 
 #define XXH_FORCE_INLINE	inline
@@ -172,6 +173,127 @@ void svlsl_01(void* XXH_RESTRICT out,
 	svst1_u32(pg, (uint32_t *)out, xout);
 }
 
+#if defined(__ARM_SVE2__) || defined(__ARM_SVE2)
+/*
+ * XAR is SVE2 instruction.
+ * Rotate only in the same lane.
+ */
+void svxar_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t xin1, xin2, xout;
+	svbool_t pg = svwhilelt_b64(0, 2);
+
+	xin1 = svld1_u64(pg, (uint64_t *)in1);
+	xin2 = svld1_u64(pg, (uint64_t *)in2);
+	xout = svxar_n_u64(xin1, xin2, 32);
+	svst1_u64(pg, (uint64_t *)out, xout);
+}
+#endif
+
+/*
+ * Reverse the order of high 32-bit and low 32-bit.
+ * It works as svswap_01(). But it's more efficient.
+ */
+void svrevw_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t xin1, xin2, xout;
+	svbool_t pg = svwhilelt_b64(0, 2);
+
+	xin1 = svld1_u64(pg, (uint64_t *)in1);
+	xout = svrevw_u64_z(pg, xin1);
+	svst1_u64(pg, (uint64_t *)out, xout);
+}
+
+/*
+ * Reverse the order of all 64-bit data.
+ * For SVE-128, it reverses the order of 64-bit data in [1-2].
+ * For SVE-256, it reverses the order of 64-bit data in [1-4] and [5-8].
+ * For SVE-512, it reverses the order of 64-bit data in [1-8].
+ * For SVE-1024 & SVE-2048, all data are cleared to 0.
+ */
+void svrev_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t xin1, xin2, xout;
+	svbool_t pg;
+	int i;
+
+	for (i = 0; i < 8; i += svcntd()) {
+		pg = svwhilelt_b64(i, 8);
+		xin1 = svld1_u64(pg, (uint64_t *)in1 + i);
+		xout = svrev_u64(xin1);
+		svst1_u64(pg, (uint64_t *)out + i, xout);
+	}
+}
+
+/*
+ * SVE EXT is different from NEON EXT.
+ * NEON EXT concatnate the low bits from first vector and high bits from
+ * second vector.
+ * SVE EXT is based on variable vector length. If vector length is larger
+ * than 128, the effect is totally different from NEON EXT.
+ */
+void svext_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint32_t xin1, xin2, xout;
+	// Totally 4 lines (512-bit) data is used.
+	// This first line is moved to the fourth line, other lines are
+	// moved forward. Don't understand the logic.
+	svbool_t pg = svwhilelt_b32(0, 16);
+
+	xin1 = svld1_u32(pg, (uint32_t *)in1);
+	xout = svext_u32(xin1, xin1, 4);
+	svst1_u32(pg, (uint32_t *)out, xout);
+}
+
+// For SVE-128, it works like NEON.
+// For SVE-256, the 1st 64-bit is shifted to the 4th; 2nd is shifted
+// to 1st; 3rd is shifted to 2nd; 4th is shifted to 3rd.
+// For SVE-512, the 1st 64-bit is shifted to the 8th; 2nd is shifted
+// to 1st; ...; 8th is shifted to 7th.
+// For SVE-1024, the 1st 64-bit is lost; 2nd is shifted to 1st; ...;
+// 8th is shifted to 7th; other bits are all 0.
+// For SVE-2048, the 1st 64-bit is lost; 2nd is shifted to 1st; ...;
+// 8th is shifted to 7th; other bits are all 0.
+void svext_02(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t xin1, xin2, xout;
+	svbool_t pg;
+
+	for (int i = 0; i < 8; i += svcntd()) {
+		pg = svwhilelt_b64(i, 8);
+		xin1 = svld1_u64(pg, (uint64_t *)in1 + i);
+		xout = svext_u64(xin1, xin1, 1);
+		svst1_u64(pg, (uint64_t *)out + i, xout);
+	}
+}
+
+void vext_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	unsigned char *q = in1, *p = out;
+
+	/* exchange lower 64bit and high 64bit of v0, and store in v2 */
+	asm volatile (
+		"ldr q0, [%0]\n"
+		"ext v2.16b, v0.16b, v0.16b, #8\n"
+		"str q2, [%1]\n"
+		: "=r"(q), "=r"(p)
+		: "0"(q), "1"(p)
+		: "v0"
+	);
+}
+
 void svmad_01(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1,
 	const void* XXH_RESTRICT in2)
@@ -272,30 +394,97 @@ void svmad_04(void* XXH_RESTRICT out,
 	svuint64x2_t xout, xin1, xin2;
 	svuint64_t acc0, acc1, data0, data1, key0, key1, mix, mix_hi, mix_lo;
 	svuint64_t shift = svdup_u64(32);
-	svbool_t pg = svwhilelt_b64(0, 8);
+	svbool_t pg;
+	int i;
 
-	xout  = svld2_u64(pg, (uint64_t *)out);
-	xin1  = svld2_u64(pg, (uint64_t *)in1);
-	xin2  = svld2_u64(pg, (uint64_t *)in2);
-	acc0  = svget2_u64(xout, 0);
-	acc1  = svget2_u64(xout, 1);
-	data0 = svget2_u64(xin1, 0);
-	data1 = svget2_u64(xin1, 1);
-	key0  = svget2_u64(xin2, 0);
-	key1  = svget2_u64(xin2, 1);
-	mix    = sveor_u64_z(pg, data0, key0);
-	mix_hi = svlsr_u64_z(pg, mix, shift);
-	mix_lo = svextw_u64_z(pg, mix);
-	mix    = svmad_u64_z(pg, mix_lo, mix_hi, acc0);
-	mix    = svadd_u64_z(pg, mix, data1);
-	xout   = svset2_u64(xout, 0, mix);
-	mix    = sveor_u64_z(pg, data1, key1);
-	mix_hi = svlsr_u64_z(pg, mix, shift);
-	mix_lo = svextw_u64_z(pg, mix);
-	mix    = svmad_u64_z(pg, mix_lo, mix_hi, acc1);
-	mix    = svadd_u64_z(pg, mix, data0);
-	xout   = svset2_u64(xout, 1, mix);
-	svst2_u64(pg, (uint64_t *)out, xout);
+	for (i = 0; i < 4; i += svcntd()) {
+		pg = svwhilelt_b64(i, 4);
+		xout  = svld2_u64(pg, (uint64_t *)out);
+		xin1  = svld2_u64(pg, (uint64_t *)in1);
+		xin2  = svld2_u64(pg, (uint64_t *)in2);
+		acc0  = svget2_u64(xout, 0);
+		acc1  = svget2_u64(xout, 1);
+		data0 = svget2_u64(xin1, 0);
+		data1 = svget2_u64(xin1, 1);
+		key0  = svget2_u64(xin2, 0);
+		key1  = svget2_u64(xin2, 1);
+		mix    = sveor_u64_z(pg, data0, key0);
+		mix_hi = svlsr_u64_z(pg, mix, shift);
+		mix_lo = svextw_u64_z(pg, mix);
+		mix    = svmad_u64_z(pg, mix_lo, mix_hi, acc0);
+		mix    = svadd_u64_z(pg, mix, data1);
+		xout   = svset2_u64(xout, 0, mix);
+		mix    = sveor_u64_z(pg, data1, key1);
+		mix_hi = svlsr_u64_z(pg, mix, shift);
+		mix_lo = svextw_u64_z(pg, mix);
+		mix    = svmad_u64_z(pg, mix_lo, mix_hi, acc1);
+		mix    = svadd_u64_z(pg, mix, data0);
+		xout   = svset2_u64(xout, 1, mix);
+		svst2_u64(pg, (uint64_t *)out, xout);
+	}
+}
+
+void svmad_05(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t data, key, mix, mix_hi, mix_lo;
+	svuint64_t acc, idx, swapped;
+	svuint64_t shift = svdup_u64(32);
+	svuint64_t subv = svdup_u64(2);
+	svbool_t p0 = svpfalse_b();
+	svbool_t p1 = svptrue_b64();
+	svbool_t pg;
+	int i;
+
+	/* create index from 1 with step 1 */
+	idx = svindex_u64(1, 1);
+	/* convert from sequence [1,2,3,4,...] to [1,0,3,2,...] */
+	p1 = svtrn1_b64(p0, p1);
+	idx = svsub_u64_m(p1, idx, subv);
+	for (i = 0; i < 8; i += svcntd()) {
+		pg = svwhilelt_b64(i, 8);
+		acc  = svld1_u64(pg, (uint64_t *)out + i);
+		data = svld1_u64(pg, (uint64_t *)in1 + i);
+		key  = svld1_u64(pg, (uint64_t *)in2 + i);
+		mix  = sveor_u64_z(pg, data, key); 
+		mix_hi = svlsr_u64_z(pg, mix, shift);
+		mix_lo = svextw_u64_z(pg, mix);
+		mix = svmad_u64_z(pg, mix_lo, mix_hi, acc);
+		/* reorder all elements in one vector by new index value */
+		swapped = svtbl_u64(data, idx);
+		acc = svadd_u64_z(pg, swapped, mix);
+		svst1(pg, (uint64_t *)out + i, acc);
+	}
+}
+
+/*
+ * Reorder 64-bit data by index & tbl.
+ * Proposed by Guodong.
+ */
+void svidx_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t xidx, xin, xout;
+	svuint64_t subv = svdup_u64(2);
+	svbool_t p0 = svpfalse_b();
+	svbool_t p1 = svptrue_b64();
+	svbool_t pg;
+	int i;
+
+	/* create index from 1 with step 1 */
+	xidx = svindex_u64(1, 1);
+	/* convert from sequence [1,2,3,4,...] to [1,0,3,2,...] */
+	p1 = svtrn1_b64(p0, p1);
+	xidx = svsub_u64_m(p1, xidx, subv);
+	for (i = 0; i < 32; i += svcntd()) {
+		pg = svwhilelt_b64(i, 32);
+		xin = svld1_u64(pg, (uint64_t *)in1 + i);
+		/* reorder all elements in one vector by new index value */
+		xout = svtbl_u64(xin, xidx);
+		svst1(pg, (uint64_t *)out + i, xout);
+	}
 }
 
 #define XXH_FORCE_INLINE	inline
@@ -407,21 +596,50 @@ XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
     }
 }
 
-void test(char *name, ftest fn)
+void test(char *name, ftest fn, int bits)
 {
-	unsigned char in1[64], in2[64];
-	unsigned char out1[64];
+	void *in1, *in2, *out1;
+	int bytes;
+
+	if (bits < 0)
+		return;
+	bytes = (bits + 7) >> 3;
+	in1 = malloc(bytes);
+	if (!in1) {
+		printf("Not enough memory for in1 (%d-bit)!\n", bits);
+		goto out_in1;
+	}
+	in2 = malloc(bytes);
+	if (!in2) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_in2;
+	}
+	out1 = malloc(bytes);
+	if (!out1) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_out1;
+	}
 
 	printf("Test in %s\n", name);
-	init_buf(in1, 512);
-	set_buf(in2, 0x55, 512);
-	clear_buf(out1, 512);
+	init_buf(in1, bits);
+	set_buf(in2, 0x55, bits);
+	clear_buf(out1, bits);
 	fn(out1, in1, in2);
-	dump_bits("IN1", in1, 512);
-	dump_bits("OUT1", out1, 512);
+	dump_bits("IN1", in1, bits);
+	dump_bits("OUT1", out1, bits);
+	free(in1);
+	free(in2);
+	free(out1);
+	return;
+out_out1:
+	free(in2);
+out_in2:
+	free(in1);
+out_in1:
+	return;
 }
 
-#define LOOP_CNT	100000000
+#define LOOP_CNT	10000000
 
 void perf(char *name, ftest fn)
 {
@@ -452,15 +670,24 @@ int main(void)
 	test("svld1_01", svld1_01);
 	test("svld1_02", svld1_02);
 #endif
-	test("svswap_01", svswap_01);
-	test("svswap_02", svswap_02);
-	test("svmad_02", svmad_02);
-	test("svmad_04", svmad_04);
-	test("svlsl_01", svlsl_01);
-	//test("scalar", XXH3_accumulate_512_scalar);
-	//test("neon", XXH3_accumulate_512_neon);
-	//perf("svmad_04", svmad_04);
+	//test("svswap_01", svswap_01);
+	//test("svswap_02", svswap_02);
+	//test("svmad_02", svmad_02, 2048);
+	test("svmad_04", svmad_04, 1024);
+	test("svmad_05", svmad_05, 1024);
+	//test("svidx_01", svidx_01, 2048);
+	//test("svlsl_01", svlsl_01);
+#if defined(__ARM_SVE2__) || defined(__ARM_SVE2)
+	//test("svxar_01", svxar_01);
+#endif
+	//test("svext_01", svext_01, 512);
+	//test("svrev_01", svrev_01, 2048);
+	//test("vext_01", vext_01);
+	//test("scalar", XXH3_accumulate_512_scalar, 1024);
+	//test("neon", XXH3_accumulate_512_neon, 1024);
+	perf("svmad_04", svmad_04);
+	perf("svmad_05", svmad_05);
 	//perf("scalar", XXH3_accumulate_512_scalar);
-	perf("neon", XXH3_accumulate_512_neon);
+	//perf("neon", XXH3_accumulate_512_neon);
 	return 0;
 }
