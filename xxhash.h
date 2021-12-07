@@ -4184,30 +4184,39 @@ XXH3_accumulate_512_sve(void* XXH_RESTRICT acc,
                   const void* XXH_RESTRICT input,
 		  const void* XXH_RESTRICT secret)
 {
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
     {
-        uint64_t i = 0;
-        uint64_t len;
-        uint8_t const* const xinput = (const uint8_t *) input;
-        uint8_t const* const xsecret = (const uint8_t *) secret;
+        svuint64_t data, key, mix, mix_hi, mix_lo;
+        svuint64_t acc, idx, swapped;
+        svuint64_t shift = svdup_u64(32);
+        svuint64_t subv = svdup_u64(2);
+        svbool_t p0 = svpfalse_b();
+        svbool_t p1 = svptrue_b64();
         svbool_t pg;
+        int i, len;
 
+        /* create index from 1 with step 1 */
+        idx = svindex_u64(1, 1);
+        /* convert from sequence [1,2,3,4,...] to [1,0,3,2,...] */
+        p1 = svtrn1_b64(p0, p1);
+        idx = svsub_u64_m(p1, idx, subv);
         len = XXH_STRIPE_LEN / sizeof(uint64_t);
-        for (i = 0; i < len; i += svcntw()) {
+        for (i = 0; i < len; i += svcntd()) {
             pg = svwhilelt_b64(i, len);
-            /* data_vec = xinput[i]; */
-	    svuint64_t data_vec = svld1_vnum_u64(pg, xinput,  i);
-            /* key_vec  = xsecret[i];  */
-            svuint64_t key_vec  = svld1_vnum_u64(pg, xsecret, i);
-            /* xacc[i] += swap(data_vec); */
-	    svuint64_t data_key = sveor_u64_m(pg, data_vec, key_vec);
-	    svuint32_t data_lo, data_hi;
-	    xacc[i ^ 1] = svadd_u64_m(pg, xacc[i ^ 1], data_vec);
-	    XXH_SPLIT_IN_PLACE(data_key, data_lo, data_hi);
-	    xacc[i] = svmad_u64_m(pg, data_lo, data_hi, xacc[i]);
-	}
+            acc  = svld1_u64(pg, (uint64_t *)out + i);
+            data = svld1_u64(pg, (uint64_t *)in1 + i);
+            key  = svld1_u64(pg, (uint64_t *)in2 + i);
+            mix  = sveor_u64_z(pg, data, key);
+            mix_hi = svlsr_u64_z(pg, mix, shift);
+            mix_lo = svextw_u64_z(pg, mix);
+            mix = svmad_u64_z(pg, mix_lo, mix_hi, acc);
+            /* reorder all elements in one vector by new index value */
+            swapped = svtbl_u64(data, idx);
+            acc = svadd_u64_z(pg, swapped, mix);
+            svst1(pg, (uint64_t *)out + i, acc);
+        }
     }
 }
-
 #endif
 
 /* scalar variants - universal */
