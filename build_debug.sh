@@ -1,10 +1,21 @@
 #!/bin/sh
 CLANG_13_PATH=/opt/toolchain/clang+llvm-13.0.0-aarch64-linux-gnu/bin/
+#CC=clang
+CC=gcc
 cd debug
 rm -f ./a.out debug_neon debug_sve
 PATH=$PATH:$CLANG_13_PATH \
-	clang -march=armv8.6-a+simd -O3 -o debug_neon -g debug.c
-./debug_neon
+	$CC -march=armv8.6-a+simd -O3 -o debug_neon -g debug.c
+#./debug_neon
+echo "SCALAR for NOSMID"
 PATH=$PATH:$CLANG_13_PATH \
-	clang -march=armv8.6-a+sve -O3 -o debug_sve -g debug_sve.c
-./debug_sve
+	$CC -march=armv8-a+nosimd -O3 -o debug_sve -g debug_sve.c
+./debug_sve -p
+echo "SCALAR may be autovectorized with NEON instructions"
+PATH=$PATH:$CLANG_13_PATH \
+	$CC -march=armv8-a+simd -O3 -o debug_sve -g debug_sve.c
+./debug_sve -p
+echo "SCALAR may be autovectorized with SVE instructions"
+PATH=$PATH:$CLANG_13_PATH \
+	$CC -march=armv8-a+sve -O3 -o debug_sve -g debug_sve.c
+./debug_sve -p

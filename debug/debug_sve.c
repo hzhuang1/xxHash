@@ -1,9 +1,17 @@
+#include <arm_acle.h>
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
 #include <arm_neon.h>
+#endif
+#if defined(__ARM_FEATURE_SVE)
 #include <arm_sve.h>
+#endif	/* __ARM_SVE__ */
+#include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #define XXH_FORCE_INLINE	inline
 #define XXH_ASSERT(c)		((void)0)
@@ -93,6 +101,7 @@ void dump_bits(char *name, unsigned char *buf, int blen)
 	}
 }
 
+#if defined(__ARM_FEATURE_SVE)
 /*
  * Store data into buffer with variable length.
  * svwhilelt_b32(0,1) == svwhilelt_b32(0,2)
@@ -181,25 +190,6 @@ void svlsl_01(void* XXH_RESTRICT out,
 	svst1_u32(pg, (uint32_t *)out, xout);
 }
 
-#if defined(__ARM_SVE2__) || defined(__ARM_SVE2)
-/*
- * XAR is SVE2 instruction.
- * Rotate only in the same lane.
- */
-void svxar_01(void* XXH_RESTRICT out,
-	const void* XXH_RESTRICT in1,
-	const void* XXH_RESTRICT in2)
-{
-	svuint64_t xin1, xin2, xout;
-	svbool_t pg = svwhilelt_b64(0, 2);
-
-	xin1 = svld1_u64(pg, (uint64_t *)in1);
-	xin2 = svld1_u64(pg, (uint64_t *)in2);
-	xout = svxar_n_u64(xin1, xin2, 32);
-	svst1_u64(pg, (uint64_t *)out, xout);
-}
-#endif
-
 /*
  * Reverse the order of high 32-bit and low 32-bit.
  * It works as svswap_01(). But it's more efficient.
@@ -283,23 +273,6 @@ void svext_02(void* XXH_RESTRICT out,
 		xout = svext_u64(xin1, xin1, 1);
 		svst1_u64(pg, (uint64_t *)out + i, xout);
 	}
-}
-
-void vext_01(void* XXH_RESTRICT out,
-	const void* XXH_RESTRICT in1,
-	const void* XXH_RESTRICT in2)
-{
-	unsigned char *q = (unsigned char *)in1, *p = out;
-
-	/* exchange lower 64bit and high 64bit of v0, and store in v2 */
-	asm volatile (
-		"ldr q0, [%0]\n"
-		"ext v2.16b, v0.16b, v0.16b, #8\n"
-		"str q2, [%1]\n"
-		: "=r"(q), "=r"(p)
-		: "0"(q), "1"(p)
-		: "v0"
-	);
 }
 
 void svmad_01(void* XXH_RESTRICT out,
@@ -515,6 +488,45 @@ void scrum_01(void* XXH_RESTRICT out,
 		svst1(pg, (uint64_t *)out + i, acc);
 	}
 }
+#endif	/* __ARM_SVE__ */
+
+#if defined(__ARM_FEATURE_SVE2)
+/*
+ * XAR is SVE2 instruction.
+ * Rotate only in the same lane.
+ */
+void svxar_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t xin1, xin2, xout;
+	svbool_t pg = svwhilelt_b64(0, 2);
+
+	xin1 = svld1_u64(pg, (uint64_t *)in1);
+	xin2 = svld1_u64(pg, (uint64_t *)in2);
+	xout = svxar_n_u64(xin1, xin2, 32);
+	svst1_u64(pg, (uint64_t *)out, xout);
+}
+#endif	/* __ARM_SVE2__ */
+
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+void vext_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	unsigned char *q = (unsigned char *)in1, *p = out;
+
+	/* exchange lower 64bit and high 64bit of v0, and store in v2 */
+	asm volatile (
+		"ldr q0, [%0]\n"
+		"ext v2.16b, v0.16b, v0.16b, #8\n"
+		"str q2, [%1]\n"
+		: "=r"(q), "=r"(p)
+		: "0"(q), "1"(p)
+		: "v0"
+	);
+}
+#endif	/* __ARM_NEON__ */
 
 
 static xxh_u64 XXH_read64(const void* memPtr)
@@ -572,6 +584,7 @@ XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
     }
 }
 
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
 /*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
                     const void* XXH_RESTRICT input,
@@ -662,6 +675,7 @@ XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
             }
     }   }
 }
+#endif
 
 void test_accum(char *name, f_accum fn, int bits)
 {
@@ -787,36 +801,52 @@ void perf_scrum(char *name, f_scrum fn)
 		(ue - us) % 1000000000);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-#if 0
-	test_accum("svld1_01", svld1_01);
-	test_accum("svld1_02", svld1_02);
-#endif
-	//test_accum("svswap_01", svswap_01);
-	//test_accum("svswap_02", svswap_02);
-	//test_accum("svmad_02", svmad_02, 2048);
-	//test_accum("svmad_04", svmad_04, 1024);
-	test_accum("svmad_05", svmad_05, 1024);
-	//test_accum("svidx_01", svidx_01, 2048);
-	//test_accum("svlsl_01", svlsl_01);
-#if defined(__ARM_SVE2__) || defined(__ARM_SVE2)
-	//test_accum("svxar_01", svxar_01);
-#endif
-	//test_accum("svext_01", svext_01, 512);
-	//test_accum("svrev_01", svrev_01, 2048);
-	//test_accum("vext_01", vext_01);
-	test_accum("scalar", XXH3_accumulate_512_scalar, 512);
-	//test_accum("neon", XXH3_accumulate_512_neon, 512);
-	//perf_accum("svmad_04", svmad_04);
-	perf_accum("svmad_05", svmad_05);
-	perf_accum("scalar", XXH3_accumulate_512_scalar);
-	perf_accum("neon", XXH3_accumulate_512_neon);
-	test_scrum("scrum_01", scrum_01, 1024);
-	test_scrum("scalar", XXH3_scrambleAcc_scalar, 512);
-	//test_scrum("neon", XXH3_scrambleAcc_neon, 512);
-	perf_scrum("scrum_01", scrum_01);
-	perf_scrum("scalar", XXH3_scrambleAcc_scalar);
-	perf_scrum("neon", XXH3_scrambleAcc_neon);
+	int op, flag_perf = 0;
+
+	while ((op = getopt(argc, argv, ":p")) != -1) {
+		switch (op) {
+		case 'p':
+			flag_perf = 1;
+			break;
+		default:
+			break;
+		}
+	}
+
+#if defined(__ARM_FEATURE_SVE)
+	if (flag_perf) {
+		//perf_accum("svmad_04", svmad_04);
+		perf_accum("svmad_05", svmad_05);
+		perf_scrum("scrum_01", scrum_01);
+	} else {
+		test_accum("svmad_05", svmad_05, 1024);
+		//test_accum("svext_01", svext_01, 512);
+		//test_accum("svrev_01", svrev_01, 2048);
+		//test_scrum("scrum_01", scrum_01, 1024);
+	}
+#endif	/* __ARM_SVE__ */
+#if defined(__ARM_FEATURE_SVE2)
+	if (!flag_perf)
+		test_accum("svxar_01", svxar_01);
+#endif	/* __ARM_SVE2__ */
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+	if (flag_perf) {
+		perf_accum("accum neon", XXH3_accumulate_512_neon);
+		perf_scrum("scrum neon", XXH3_scrambleAcc_neon);
+	} else {
+		//test_accum("vext_01", vext_01);
+		test_accum("accum neon", XXH3_accumulate_512_neon, 512);
+		test_scrum("scrum neon", XXH3_scrambleAcc_neon, 512);
+	}
+#endif	/* ARM_NEON */
+	if (flag_perf) {
+		perf_accum("accum scalar", XXH3_accumulate_512_scalar);
+		perf_scrum("scrum scalar", XXH3_scrambleAcc_scalar);
+	} else {
+		test_accum("accum scalar", XXH3_accumulate_512_scalar, 512);
+		test_scrum("scrum scalar", XXH3_scrambleAcc_scalar, 512);
+	}
 	return 0;
 }
