@@ -4031,28 +4031,32 @@ XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
     XXH_ASSERT((((size_t)acc) & 15) == 0);
     {
         uint64x2_t* const xacc = (uint64x2_t *) acc;
-        uint32_t const* const xinput = (const uint32_t *) input;
-	uint32_t const* const xsecret = (const uint32_t *) secret;
+        /* We don't use a uint32x4_t pointer because it causes bus errors on ARMv7. */
+        uint8_t const* const xinput = (const uint8_t *) input;
+        uint8_t const* const xsecret  = (const uint8_t *) secret;
+
         size_t i;
         for (i=0; i < XXH_STRIPE_LEN / sizeof(uint64x2_t); i++) {
-            uint32x2x2_t data_vec  = vld2_u32(xinput + i*4);
-            uint32x2_t data_lo     = data_vec.val[0];
-            uint32x2_t data_hi     = data_vec.val[1];
-            uint32x2x2_t key_vec   = vld2_u32(xsecret + i*4);
-            uint32x2_t key_lo      = key_vec.val[0];
-            uint32x2_t key_hi      = key_vec.val[1];
-	    key_lo = veor_u32(key_lo, data_lo);
-	    key_hi = veor_u32(key_hi, data_hi);
-            xacc[i] = vmlal_u32(xacc[i], key_lo, key_hi);
+	//for (i=0; i < 1; i++) {
+            /* data_vec = xinput[i]; */
+            uint8x16_t data_vec    = vld1q_u8(xinput  + (i * 16));
+            /* key_vec  = xsecret[i];  */
+            uint8x16_t key_vec     = vld1q_u8(xsecret + (i * 16));
+            uint64x2_t data_key;
+            uint32x2_t data_key_lo, data_key_hi;
+            /* xacc[i] += swap(data_vec); */
+            uint64x2_t const data64  = vreinterpretq_u64_u8(data_vec);
+            uint64x2_t const swapped = vextq_u64(data64, data64, 1);
+            xacc[i] = vaddq_u64 (xacc[i], swapped);
+            /* data_key = data_vec ^ key_vec; */
+            data_key = vreinterpretq_u64_u8(veorq_u8(data_vec, key_vec));
+            /* data_key_lo = (uint32x2_t) (data_key & 0xFFFFFFFF);
+             * data_key_hi = (uint32x2_t) (data_key >> 32);
+             * data_key = UNDEFINED; */
+            XXH_SPLIT_IN_PLACE(data_key, data_key_lo, data_key_hi);
+            /* xacc[i] += (uint64x2_t) data_key_lo * (uint64x2_t) data_key_hi; */
+            xacc[i] = vmlal_u32 (xacc[i], data_key_lo, data_key_hi);
 
-            key_lo = vrev64_u32(data_lo);
-            uint64x2_t tmp1 = vshll_n_u32(key_lo, 0);
-            xacc[i] = vaddq_u64(xacc[i], tmp1);
-            
-            key_hi = vrev64_u32(data_hi);
-            uint64x2_t tmp2 = vshll_n_u32(key_hi, 0);
-            tmp2 = vshlq_n_u64(tmp2, 32);
-            xacc[i] = vaddq_u64(xacc[i], tmp2);
         }
     }
 }
