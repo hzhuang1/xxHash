@@ -440,6 +440,172 @@ void svmad_05(void* XXH_RESTRICT out,
 	}
 }
 
+void svest_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svbool_t pg;
+	int i;
+	for (i = 0; i < 4; i += svcntd()) {
+	}
+}
+
+/*
+ * Test empty_accum costs 0 sec and 17137205 nsec
+ * Test empty_scrum costs 0 sec and 17126304 nsec
+ * Test svest_01 costs	  0 sec and 28954641 nsec
+ * Test svest_02 costs	  0 sec and 28989951 nsec
+ * From this log, we could know that iteration numbers on i impact little.
+ */
+void svest_02(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svbool_t pg;
+	int i;
+	for (i = 0; i < 8; i += svcntd()) {
+	}
+}
+
+/*
+ * Test svest_01 costs	0 sec and 29203579 nsec
+ * Test svest_02 costs	0 sec and 29039659 nsec
+ * Test svest_03 costs	0 sec and 28039421 nsec
+ * It's better that only use one whilelt. It costs a lot if more are used.
+ */
+void svest_03(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+
+	__asm__ __volatile__ (
+		".loop:\n\t"
+		"incd		%2\n\t"
+		"whilelt	p0.s, %2, %3\n\t"
+		"b.first	.loop\n\t"
+		:			/* output */
+		: [input] "r" (out), "r" (in1), "r" (i), "r" (len)
+		: "cc", "p0", "memory" /* clobber register */
+	);
+}
+
+void svest_04(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+
+	__asm__ __volatile__ (
+		"ptrue		p0.b\n\t"
+		".L4loop:\n\t"
+		/* load in1 */
+		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		"incd		%2\n\t"
+		"whilelt	p0.s, %2, %3\n\t"
+		"b.first	.L4loop\n\t"
+		:			/* output */
+		: [input] "r" (out), "r" (in1), "r" (i), "r" (len)
+		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
+	);
+}
+
+/*
+ * Test svest_01 costs	0 sec and 29543111 nsec
+ * Test svest_02 costs	0 sec and 29670381 nsec
+ * Test svest_03 costs	0 sec and 28461213 nsec
+ * Test svest_04 costs	0 sec and 31380568 nsec
+ * Test svest_05 costs	0 sec and 170740947 nsec
+ * From this log, we can know that saving cost much more than loading.
+ */
+void svest_05(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+
+	__asm__ __volatile__ (
+		"ptrue		p0.b\n\t"
+		".L5loop:\n\t"
+		/* load in1 */
+		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		/* save out */
+		"st1d		z0.d, p0, [%0, %2, lsl #3]\n\t"
+		"incd		%2\n\t"
+		"whilelt	p0.s, %2, %3\n\t"
+		"b.first	.L5loop\n\t"
+		:			/* output */
+		: [input] "r" (out), "r" (in1), "r" (i), "r" (len)
+		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
+	);
+}
+
+void svest_06(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+	uint32_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		/* load prime32_1 */
+		"ptrue		p0.b\n\t"
+		"mov		z3.d, %4\n\t"
+		".L6loop:\n\t"
+		/* load in1 */
+		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		/* save out */
+		"st1d		z0.d, p0, [%0, %2, lsl #3]\n\t"
+		"incd		%2\n\t"
+		"whilelt	p0.s, %2, %3\n\t"
+		"b.first	.L6loop\n\t"
+		:			/* output */
+		: [input] "r" (out), "r" (in1), "r" (i), "r" (len), "r" (prime)
+		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
+	);
+}
+
+void svest_07(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+	uint32_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		/* load prime32_1 */
+		"ptrue		p0.b\n\t"
+		"mov		z3.d, %4\n\t"
+		".L7loop:\n\t"
+		/* load in1 */
+		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z4.d, z1.d, z2.d\n\t"
+		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		/* save out */
+		"st1d		z0.d, p0, [%0, %2, lsl #3]\n\t"
+		"incd		%2\n\t"
+		"whilelt	p0.s, %2, %3\n\t"
+		"b.first	.L7loop\n\t"
+		:			/* output */
+		: [input] "r" (out), "r" (in1), "r" (i), "r" (len), "r" (prime)
+		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
+	);
+}
+
 /*
  * Reorder 64-bit data by index & tbl.
  * Proposed by Guodong.
@@ -827,13 +993,25 @@ int main(int argc, char **argv)
 
 #if defined(__ARM_FEATURE_SVE)
 	if (flag_perf) {
+		/*
 		//perf_accum("svmad_04", svmad_04);
 		perf_accum("svmad_05", svmad_05);
 		perf_scrum("scrum_01", scrum_01);
+		*/
+		/*
 		perf_accum("empty_accum", empty_accum);
 		perf_scrum("empty_scrum", empty_scrum);
+		*/
+		perf_accum("svest_01", svest_01);
+		perf_accum("svest_02", svest_02);
+		perf_scrum("svest_03", svest_03);
+		perf_scrum("svest_04", svest_04);
+		perf_scrum("svest_05", svest_05);
+		perf_scrum("svest_06", svest_06);
+		perf_scrum("svest_07", svest_07);
 	} else {
 		test_accum("svmad_05", svmad_05, 1024);
+		test_scrum("svest_06", svest_06, 1024);
 		//test_accum("svext_01", svext_01, 512);
 		//test_accum("svrev_01", svrev_01, 2048);
 		//test_scrum("scrum_01", scrum_01, 1024);
