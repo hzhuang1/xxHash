@@ -677,6 +677,16 @@ XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 }
 #endif
 
+void empty_accum( void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret)
+{
+}
+
+void empty_scrum(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
+{
+}
+
 void test_accum(char *name, f_accum fn, int bits)
 {
 	void *in1, *in2, *out1;
@@ -774,7 +784,7 @@ void perf_accum(char *name, f_accum fn)
 	clock_gettime(CLOCK_REALTIME, &end);
 	ue = end.tv_nsec + end.tv_sec * 1000000000;
 	us = start.tv_nsec + start.tv_sec * 1000000000; 
-	printf("costs %ld sec and %ld nsec\n",
+	printf("costs\t%ld sec and %ld nsec\n",
 		(ue - us) / 1000000000,
 		(ue - us) % 1000000000);
 }
@@ -796,7 +806,7 @@ void perf_scrum(char *name, f_scrum fn)
 	clock_gettime(CLOCK_REALTIME, &end);
 	ue = end.tv_nsec + end.tv_sec * 1000000000;
 	us = start.tv_nsec + start.tv_sec * 1000000000; 
-	printf("costs %ld sec and %ld nsec\n",
+	printf("costs\t%ld sec and %ld nsec\n",
 		(ue - us) / 1000000000,
 		(ue - us) % 1000000000);
 }
@@ -820,6 +830,8 @@ int main(int argc, char **argv)
 		//perf_accum("svmad_04", svmad_04);
 		perf_accum("svmad_05", svmad_05);
 		perf_scrum("scrum_01", scrum_01);
+		perf_accum("empty_accum", empty_accum);
+		perf_scrum("empty_scrum", empty_scrum);
 	} else {
 		test_accum("svmad_05", svmad_05, 1024);
 		//test_accum("svext_01", svext_01, 512);

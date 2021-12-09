@@ -7,15 +7,15 @@ rm -f ./a.out debug_neon debug_sve
 PATH=$PATH:$CLANG_13_PATH \
 	$CC -march=armv8.6-a+simd -O3 -o debug_neon -g debug.c
 #./debug_neon
-echo "SCALAR for NOSMID"
+echo "SCALAR for NOSIMD"
 PATH=$PATH:$CLANG_13_PATH \
 	$CC -march=armv8-a+nosimd -O3 -o debug_sve -g debug_sve.c
 ./debug_sve -p
-echo "SCALAR may be autovectorized with NEON instructions"
+echo "\nSCALAR may be autovectorized by NEON instructions"
 PATH=$PATH:$CLANG_13_PATH \
 	$CC -march=armv8-a+simd -O3 -o debug_sve -g debug_sve.c
 ./debug_sve -p
-echo "SCALAR may be autovectorized with SVE instructions"
+echo "\nSCALAR may be autovectorized by SVE instructions"
 PATH=$PATH:$CLANG_13_PATH \
 	$CC -march=armv8-a+sve -O3 -o debug_sve -g debug_sve.c
 ./debug_sve -p
