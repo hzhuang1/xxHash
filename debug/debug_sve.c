@@ -102,6 +102,7 @@ void dump_bits(char *name, unsigned char *buf, int blen)
 }
 
 #if defined(__ARM_FEATURE_SVE)
+
 /*
  * Store data into buffer with variable length.
  * svwhilelt_b32(0,1) == svwhilelt_b32(0,2)
@@ -421,17 +422,15 @@ void svmad_05(void* XXH_RESTRICT out,
 	/* create index from 1 with step 1 */
 	idx = svindex_u64(1, 1);
 	/* convert from sequence [1,2,3,4,...] to [1,0,3,2,...] */
-	p1 = svtrn1_b64(p0, p1);
-	idx = svsub_u64_m(p1, idx, subv);
-	for (i = 0; i < 8; i += svcntd()) {
-		pg = svwhilelt_b64(i, 8);
+	p0 = svtrn1_b64(p0, p1);
+	idx = svsub_u64_m(p0, idx, subv);
+	for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
 		acc  = svld1_u64(pg, (uint64_t *)out + i);
 		data = svld1_u64(pg, (uint64_t *)in1 + i);
 		key  = svld1_u64(pg, (uint64_t *)in2 + i);
 		mix  = sveor_u64_m(pg, data, key); 
 		mix_hi = svlsr_u64_m(pg, mix, shift);
 		mix_lo = svand_n_u64_m(pg, mix, 0xffffffff);
-		//mix_lo = svextw_u64_z(pg, mix);
 		mix = svmad_u64_m(pg, mix_lo, mix_hi, acc);
 		/* reorder all elements in one vector by new index value */
 		swapped = svtbl_u64(data, idx);
@@ -554,23 +553,23 @@ void svest_06(void* XXH_RESTRICT out,
 	__asm__ __volatile__ (
 		/* load prime32_1 */
 		"ptrue		p0.b\n\t"
-		"mov		z3.d, %4\n\t"
+		"mov		z3.d, %[prm]\n\t"
 		".L6loop:\n\t"
 		/* load in1 */
-		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
-		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
 		"eor		z1.d, z0.d, z1.d\n\t"
 		"lsr		z2.d, z0.d, #47\n\t"
 		"eor		z0.d, z1.d, z2.d\n\t"
 		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
 		/* save out */
-		"st1d		z0.d, p0, [%0, %2, lsl #3]\n\t"
-		"incd		%2\n\t"
-		"whilelt	p0.s, %2, %3\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"incd		%[i]\n\t"
+		"whilelt	p0.s, %[i], %[len]\n\t"
 		"b.first	.L6loop\n\t"
 		:			/* output */
-		: [input] "r" (out), "r" (in1), "r" (i), "r" (len), "r" (prime)
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
 		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
 	);
 }
@@ -585,24 +584,84 @@ void svest_07(void* XXH_RESTRICT out,
 	__asm__ __volatile__ (
 		/* load prime32_1 */
 		"ptrue		p0.b\n\t"
-		"mov		z3.d, %4\n\t"
+		"mov		z3.d, %[prm]\n\t"
 		".L7loop:\n\t"
 		/* load in1 */
-		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
-		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
 		"eor		z1.d, z0.d, z1.d\n\t"
 		"lsr		z2.d, z0.d, #47\n\t"
 		"eor		z4.d, z1.d, z2.d\n\t"
 		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
 		/* save out */
-		"st1d		z0.d, p0, [%0, %2, lsl #3]\n\t"
-		"incd		%2\n\t"
-		"whilelt	p0.s, %2, %3\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"incd		%[i]\n\t"
+		"whilelt	p0.s, %[i], %[len]\n\t"
 		"b.first	.L7loop\n\t"
 		:			/* output */
-		: [input] "r" (out), "r" (in1), "r" (i), "r" (len), "r" (prime)
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
 		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
+	);
+}
+
+/*
+ * svest_08() equals to svest_06().
+ * svest_08() avoids to use whilelt inctd since it's on SVE-512 CPU. It could
+ * improves a little. If I move "ptrue p0.d, vl8" to svest_06(), it would
+ * cost a little more CPU resources.
+ */
+void svest_08(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+	uint32_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		"ptrue		p0.d, VL8\n\t"
+		/* load prime32_1 */
+		"mov		z3.d, %[prm]\n\t"
+		/* load in1 */
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		/* save out */
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		:			/* output */
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
+		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
+	);
+}
+
+void svest_09(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	int i = 0, len = 8, cnt = 0;
+	uint32_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		"ptrue		p0.d, VL8\n\t"
+		/* load prime32_1 */
+		"mov		z3.d, %[prm]\n\t"
+		/* load in1 */
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		/* save out */
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		:			/* output */
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
+		: "cc", "p0", "z0", "z1" /* clobber register */
 	);
 }
 
@@ -648,7 +707,26 @@ void scrum_01(void* XXH_RESTRICT out,
 		xin  = svld1_u64(pg, (uint64_t *)in + i);
 		acc  = svld1_u64(pg, (uint64_t *)out + i);
 		data = svlsr_n_u64_m(pg, acc, 47);
-		acc  = sveor_u64_m(pg, xin, acc); 
+		acc  = sveor_u64_m(pg, xin, acc);
+		acc = sveor_u64_m(pg, data, acc);
+		acc = svmul_n_u64_m(pg, acc, XXH_PRIME32_1);
+		svst1(pg, (uint64_t *)out + i, acc);
+	}
+}
+
+void scrum_02(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in)
+{
+	svuint64_t xin, acc, data;
+	svbool_t p1 = svptrue_b64();
+	svbool_t pg;
+	int i;
+
+	for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
+		xin  = svld1_u64(pg, (uint64_t *)in + i);
+		acc  = svld1_u64(pg, (uint64_t *)out + i);
+		data = svlsr_n_u64_m(pg, acc, 47);
+		acc  = sveor_u64_m(pg, xin, acc);
 		acc = sveor_u64_m(pg, data, acc);
 		acc = svmul_n_u64_m(pg, acc, XXH_PRIME32_1);
 		svst1(pg, (uint64_t *)out + i, acc);
@@ -995,9 +1073,10 @@ int main(int argc, char **argv)
 	if (flag_perf) {
 		/*
 		//perf_accum("svmad_04", svmad_04);
+		*/
 		perf_accum("svmad_05", svmad_05);
 		perf_scrum("scrum_01", scrum_01);
-		*/
+		perf_scrum("scrum_02", scrum_02);
 		/*
 		perf_accum("empty_accum", empty_accum);
 		perf_scrum("empty_scrum", empty_scrum);
@@ -1009,9 +1088,12 @@ int main(int argc, char **argv)
 		perf_scrum("svest_05", svest_05);
 		perf_scrum("svest_06", svest_06);
 		perf_scrum("svest_07", svest_07);
+		//perf_scrum("svest_08", svest_08);
+		perf_scrum("svest_09", svest_09);
 	} else {
 		test_accum("svmad_05", svmad_05, 1024);
-		test_scrum("svest_06", svest_06, 1024);
+		test_scrum("scrum_02", scrum_02, 1024);
+		test_scrum("svest_09", svest_09, 1024);
 		//test_accum("svext_01", svext_01, 512);
 		//test_accum("svrev_01", svrev_01, 2048);
 		//test_scrum("scrum_01", scrum_01, 1024);
