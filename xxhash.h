@@ -4197,16 +4197,14 @@ XXH3_accumulate_512_sve(void* XXH_RESTRICT acc,
         svbool_t p0 = svpfalse_b();
         svbool_t p1 = svptrue_b64();
         svbool_t pg;
-        int i, len;
+        int i;
 
         /* create index from 1 with step 1 */
         idx = svindex_u64(1, 1);
         /* convert from sequence [1,2,3,4,...] to [1,0,3,2,...] */
         p1 = svtrn1_b64(p0, p1);
         idx = svsub_u64_m(p1, idx, subv);
-        len = XXH_STRIPE_LEN / sizeof(uint64_t);
-        for (i = 0; i < len; i += svcntd()) {
-            pg = svwhilelt_b64(i, len);
+	for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
             acc  = svld1_u64(pg, (uint64_t *)out + i);
             data = svld1_u64(pg, (uint64_t *)in1 + i);
             key  = svld1_u64(pg, (uint64_t *)in2 + i);
@@ -4228,12 +4226,10 @@ XXH3_scrambleAcc_sve(void* XXH_RESTRICT acc,
 {
     svuint64_t xin, acc, data;
     svbool_t pg;
-    int i, len;
+    int i;
 
     XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
-    len = XXH_ACC_NB;
-    for (i = 0; i < len; i += svcntd()) {
-        pg = svwhilelt_b64(i, len);
+    for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
         xin  = svld1_u64(pg, (uint64_t *)in + i);
         acc  = svld1_u64(pg, (uint64_t *)out + i);
         data = svlsr_n_u64_m(pg, acc, 47);
