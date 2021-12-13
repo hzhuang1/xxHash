@@ -1026,35 +1026,68 @@ void perf_accum(char *name, f_accum fn)
 	unsigned char in1[64], in2[64];
 	unsigned char out1[64];
 	int i;
+#if defined(__AARCH64_CMODEL_SMALL__)
 	uint64_t t1, t2;
+#else
+	struct timespec start, end;
+	uint64_t us, ue;
+#endif
 
 	printf("Test %s ", name);
 	init_buf(in1, 512);
 	clear_buf(in2, 512);
 	clear_buf(out1, 512);
+#if defined(__AARCH64_CMODEL_SMALL__)
 	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t1));
 	for (i = 0; i < LOOP_CNT; i++)
 		fn(out1, in1, in2);
 	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t2));
 	printf("costs\t%ld counts\n", t2 - t1);
+#else
+	clock_gettime(CLOCK_REALTIME, &start);
+	for (i = 0; i < LOOP_CNT; i++)
+		fn(out1, in1, in2);
+	clock_gettime(CLOCK_REALTIME, &end);
+	ue = end.tv_nsec + end.tv_sec * 1000000000;
+	us = start.tv_nsec + start.tv_sec * 1000000000;
+	printf("costs\t%ld sec and %ld nsec\n",
+		(ue - us) / 1000000000,
+		(ue - us) % 1000000000);
+#endif
 }
 
 void perf_scrum(char *name, f_scrum fn)
 {
 	unsigned char in1[64];
 	unsigned char out1[64];
-	struct timespec start, end;
-	uint64_t t1, t2;
 	int i;
+#if defined(__AARCH64_CMODEL_SMALL__)
+	uint64_t t1, t2;
+#else
+	struct timespec start, end;
+	uint64_t us, ue;
+#endif
 
 	printf("Test %s ", name);
 	init_buf(in1, 512);
 	clear_buf(out1, 512);
+#if defined(__AARCH64_CMODEL_SMALL__)
 	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t1));
 	for (i = 0; i < LOOP_CNT; i++)
 		fn(out1, in1);
 	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t2));
 	printf("costs\t%ld counts\n", t2 - t1);
+#else
+	clock_gettime(CLOCK_REALTIME, &start);
+	for (i = 0; i < LOOP_CNT; i++)
+		fn(out1, in1);
+	clock_gettime(CLOCK_REALTIME, &end);
+	ue = end.tv_nsec + end.tv_sec * 1000000000;
+	us = start.tv_nsec + start.tv_sec * 1000000000;
+	printf("costs\t%ld sec and %ld nsec\n",
+		(ue - us) / 1000000000,
+		(ue - us) % 1000000000);
+#endif
 }
 
 int main(int argc, char **argv)
