@@ -1,4 +1,3 @@
-#include <arm_acle.h>
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
@@ -450,6 +449,7 @@ void svest_01(void* XXH_RESTRICT out,
 }
 
 /*
+ * For no optiomization comipler option.
  * Test empty_accum costs 0 sec and 17137205 nsec
  * Test empty_scrum costs 0 sec and 17126304 nsec
  * Test svest_01 costs	  0 sec and 28954641 nsec
@@ -467,6 +467,7 @@ void svest_02(void* XXH_RESTRICT out,
 }
 
 /*
+ * For no optiomization comipler option.
  * Test svest_01 costs	0 sec and 29203579 nsec
  * Test svest_02 costs	0 sec and 29039659 nsec
  * Test svest_03 costs	0 sec and 28039421 nsec
@@ -476,16 +477,16 @@ void svest_03(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
+	uint64_t i = 0, len = 8, cnt = 0;
 
 	__asm__ __volatile__ (
-		".loop:\n\t"
-		"incd		%2\n\t"
-		"whilelt	p0.s, %2, %3\n\t"
-		"b.first	.loop\n\t"
+		".Lloop%=:\n\t"
+		"incd		%[i]\n\t"
+		"whilelt	p0.s, %w[i], %w[len]\n\t"
+		"b.first	.Lloop%=\n\t"
 		:			/* output */
-		: [input] "r" (out), "r" (in1), "r" (i), "r" (len)
-		: "cc", "p0", "memory" /* clobber register */
+		: [out] "r" (out), "r" (in1), [i] "r" (i), [len] "r" (len)
+		: "cc", "p0" /* clobber register */
 	);
 }
 
@@ -493,25 +494,28 @@ void svest_04(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
+	uint64_t i = 0, len = 8, cnt = 0;
 
 	__asm__ __volatile__ (
 		"ptrue		p0.b\n\t"
-		".L4loop:\n\t"
+		/* In clang, it'll occur segment fault if clearing i is missing. */
+		"mov		%[i], #0\n\t"
+		".Lloop%=:\n\t"
 		/* load in1 */
-		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
-		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
-		"incd		%2\n\t"
-		"whilelt	p0.s, %2, %3\n\t"
-		"b.first	.L4loop\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"incd		%[i]\n\t"
+		"whilelt	p0.s, %w[i], %w[len]\n\t"
+		"b.first	.Lloop%=\n\t"
 		:			/* output */
-		: [input] "r" (out), "r" (in1), "r" (i), "r" (len)
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len)
 		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
 	);
 }
 
 /*
+ * For no optiomization comipler option.
  * Test svest_01 costs	0 sec and 29543111 nsec
  * Test svest_02 costs	0 sec and 29670381 nsec
  * Test svest_03 costs	0 sec and 28461213 nsec
@@ -523,22 +527,24 @@ void svest_05(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
+	uint64_t i = 0, len = 8, cnt = 0;
 
 	__asm__ __volatile__ (
 		"ptrue		p0.b\n\t"
-		".L5loop:\n\t"
+		/* In clang, it'll occur segment fault if clearing i is missing. */
+		"mov		%[i], #0\n\t"
+		".Lloop%=:\n\t"
 		/* load in1 */
-		"ld1d		z1.d, p0/z, [%1, %2, lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
-		"ld1d		z0.d, p0/z, [%0, %2, lsl #3]\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
 		/* save out */
-		"st1d		z0.d, p0, [%0, %2, lsl #3]\n\t"
-		"incd		%2\n\t"
-		"whilelt	p0.s, %2, %3\n\t"
-		"b.first	.L5loop\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"incd		%[i]\n\t"
+		"whilelt	p0.s, %w[i], %w[len]\n\t"
+		"b.first	.Lloop%=\n\t"
 		:			/* output */
-		: [input] "r" (out), "r" (in1), "r" (i), "r" (len)
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len)
 		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
 	);
 }
@@ -547,14 +553,16 @@ void svest_06(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
-	uint32_t prime = XXH_PRIME32_1;
+	uint64_t i = 0, len = 8, cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
 
 	__asm__ __volatile__ (
 		/* load prime32_1 */
 		"ptrue		p0.b\n\t"
+		/* In clang, it'll occur segment fault if clearing i is missing. */
+		"mov		%[i], #0\n\t"
 		"mov		z3.d, %[prm]\n\t"
-		".L6loop:\n\t"
+		".Lloop%=:\n\t"
 		/* load in1 */
 		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
@@ -566,8 +574,8 @@ void svest_06(void* XXH_RESTRICT out,
 		/* save out */
 		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
 		"incd		%[i]\n\t"
-		"whilelt	p0.s, %[i], %[len]\n\t"
-		"b.first	.L6loop\n\t"
+		"whilelt	p0.s, %w[i], %w[len]\n\t"
+		"b.first	.Lloop%=\n\t"
 		:			/* output */
 		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
 		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
@@ -578,14 +586,16 @@ void svest_07(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
-	uint32_t prime = XXH_PRIME32_1;
+	uint64_t i = 0, len = 8, cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
 
 	__asm__ __volatile__ (
 		/* load prime32_1 */
 		"ptrue		p0.b\n\t"
+		/* In clang, it'll occur segment fault if clearing i is missing. */
+		"mov		%[i], #0\n\t"
 		"mov		z3.d, %[prm]\n\t"
-		".L7loop:\n\t"
+		".Lloop%=:\n\t"
 		/* load in1 */
 		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
@@ -597,8 +607,8 @@ void svest_07(void* XXH_RESTRICT out,
 		/* save out */
 		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
 		"incd		%[i]\n\t"
-		"whilelt	p0.s, %[i], %[len]\n\t"
-		"b.first	.L7loop\n\t"
+		"whilelt	p0.s, %w[i], %w[len]\n\t"
+		"b.first	.Lloop%=\n\t"
 		:			/* output */
 		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
 		: "cc", "p0", "z0", "z1", "memory" /* clobber register */
@@ -615,8 +625,8 @@ void svest_08(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
-	uint32_t prime = XXH_PRIME32_1;
+	uint64_t i = 0, len = 8, cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
 
 	__asm__ __volatile__ (
 		"ptrue		p0.d, VL8\n\t"
@@ -642,26 +652,26 @@ void svest_09(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
 	svbool_t pg;
-	int i = 0, len = 8, cnt = 0;
-	uint32_t prime = XXH_PRIME32_1;
+	uint64_t i = 0, len = 8, cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
 
 	__asm__ __volatile__ (
-		"ptrue		p0.d, VL8\n\t"
+		"ptrue		%[pg].d, VL8\n\t"
 		/* load prime32_1 */
 		"mov		z3.d, %[prm]\n\t"
 		/* load in1 */
-		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, %[pg]/z, [%[in1], %[i], lsl #3]\n\t"
 		/* load out */
-		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z0.d, %[pg]/z, [%[out], %[i], lsl #3]\n\t"
 		"eor		z1.d, z0.d, z1.d\n\t"
 		"lsr		z2.d, z0.d, #47\n\t"
 		"eor		z0.d, z1.d, z2.d\n\t"
-		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
 		/* save out */
-		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
 		:			/* output */
-		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime)
-		: "cc", "p0", "z0", "z1" /* clobber register */
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime), [pg] "Upl" (pg)
+		: "cc", "z0", "z1" /* clobber register */
 	);
 }
 
@@ -1073,14 +1083,12 @@ int main(int argc, char **argv)
 		perf_accum("empty_accum", empty_accum);
 		perf_scrum("empty_scrum", empty_scrum);
 		*/
-		perf_accum("svest_01", svest_01);
-		perf_accum("svest_02", svest_02);
 		perf_scrum("svest_03", svest_03);
 		perf_scrum("svest_04", svest_04);
 		perf_scrum("svest_05", svest_05);
 		perf_scrum("svest_06", svest_06);
 		perf_scrum("svest_07", svest_07);
-		//perf_scrum("svest_08", svest_08);
+		perf_scrum("svest_08", svest_08);
 		perf_scrum("svest_09", svest_09);
 	} else {
 		test_accum("svmad_05", svmad_05, 1024);
