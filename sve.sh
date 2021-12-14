@@ -11,10 +11,15 @@ OPTION="clang13+sve+arch"
 #OPTION="gcc11+sve"
 #OPTION="gcc11+neon"
 #OPTION="gcc11+scalar"
+DEBUG_NOSTORE=1
+
 PWD=`pwd`
 WORKSPACE=$PWD
 
 check_option() {
+	if [ ${DEBUG_NOSTORE} ]; then
+		export TEST_FLAGS="-DDEBUG_NOSTORE=1"
+	fi
 	case $OPTION in
 	"clang13+sve+arch")
 		export PATH=$PATH:$CLANG13_PATH
@@ -100,7 +105,7 @@ run_bench() {
 build_debug() {
 	cd $WORKSPACE/debug
 	rm -f debug_sve
-	$CC $CFLAGS $ASM_FLAGS -O3 -o debug_sve debug_sve.c
+	$CC $CFLAGS $TEST_FLAGS -o debug_sve debug_sve.c
 }
 
 run_debug() {

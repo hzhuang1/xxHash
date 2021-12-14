@@ -648,6 +648,37 @@ void svest_08(void* XXH_RESTRICT out,
 	);
 }
 
+#if defined(DEBUG_NOSTORE)
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+void svest_09(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	uint64_t i = 0, len = 8, cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		"ptrue		%[pg].d, VL8\n\t"
+		/* load prime32_1 */
+		"mov		z3.d, %[prm]\n\t"
+		/* load in1 */
+		"ld1d		z1.d, %[pg]/z, [%[in1], %[i], lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, %[pg]/z, [%[out], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
+		/* save out */
+		//"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
+		:			/* output */
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime), [pg] "Upl" (pg)
+		: "cc", "z0", "z1" /* clobber register */
+	);
+}
+#pragma GCC pop_options
+#else
 void svest_09(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
@@ -674,6 +705,7 @@ void svest_09(void* XXH_RESTRICT out,
 		: "cc", "z0", "z1" /* clobber register */
 	);
 }
+#endif	/* DEBUG_NOSTORE */
 
 /*
  * Reorder 64-bit data by index & tbl.
@@ -809,8 +841,45 @@ void vscrum_01(void* XXH_RESTRICT out,
 	);
 }
 
-void __attribute__((optnone))
-vscrum_02(void* XXH_RESTRICT out,
+#if defined(DEBUG_NOSTORE)
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+void vscrum_02(void* XXH_RESTRICT out,
+	 const void* XXH_RESTRICT in)
+{
+	uint64_t prime = XXH_PRIME32_1;
+	uint64_t offset;
+
+	/*
+	 * MUL instruction doesn't support value D of .<T> field.
+	 * It only supports value B, H and S of .<T> field.
+	 */
+	asm volatile (
+		"dup	v0.4s, %w[prm]\n\t"
+		"mov	%[off], #0\n\t"
+		".Lloop%=:\n\t"
+		"ldr	q2, [%[out], %[off]]\n\t"
+		"ldr	q1, [%[in], %[off]]\n\t"
+		"ushr	v3.2d, v2.2d, #47\n\t"
+		"eor	v2.16b, v1.16b, v2.16b\n\t"
+		"eor	v2.16b, v3.16b, v2.16b\n\t"
+		"xtn	v3.2s, v2.2d\n\t"	// low 64-bit of v3 is used
+		"shrn	v2.2s, v2.2d, #32\n\t"	// low 64-bit of v2 is used
+		"umull	v2.2d, v2.2s, v0.2s\n\t"
+		"shl	v2.2d, v2.2d, #32\n\t"
+		"umlal	v2.2d, v3.2s, v0.2s\n\t"
+		//"str	q2, [%[out], %[off]]\n\t"
+		"add	%[off], %[off], #0x10\n\t"
+		"cmp	%[off], #0x40\n\t"
+		"b.ne	.Lloop%=\n\t"
+		: /* no output */
+		: [out] "r" (out), [in] "r" (in), [prm] "r" (prime), [off] "r" (offset)
+		: "v0" /* prm */, "v1" /* key */, "v2" /* acc */, "v3" /* shf */
+	);
+}
+#pragma GCC pop_options
+#else
+void vscrum_02(void* XXH_RESTRICT out,
 	 const void* XXH_RESTRICT in)
 {
 	uint64_t prime = XXH_PRIME32_1;
@@ -843,6 +912,7 @@ vscrum_02(void* XXH_RESTRICT out,
 		: "v0" /* prm */, "v1" /* key */, "v2" /* acc */, "v3" /* shf */
 	);
 }
+#endif	/* DEBUG_NOSTORE */
 #endif	/* __ARM_NEON__ */
 
 
@@ -884,6 +954,28 @@ XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 	}
 }
 
+#if defined(DEBUG_NOSTORE)
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+/*XXH_FORCE_INLINE*/ void
+XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
+{
+    xxh_u64* const xacc = (xxh_u64*) acc;   /* presumed aligned */
+    const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
+    size_t i;
+    XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
+    for (i=0; i < XXH_ACC_NB; i++) {
+        xxh_u64 acc64 = xacc[i];
+	xxh_u64 key64;
+	memcpy(&key64, xsecret + 8*i, sizeof(xxh_u64));
+	acc64 = acc64 ^ (acc64 >> 47);
+        acc64 ^= key64;
+        acc64 *= XXH_PRIME32_1;
+        //xacc[i] = acc64;
+    }
+}
+#pragma GCC pop_options
+#else
 /*XXH_FORCE_INLINE*/ void
 XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 {
@@ -900,6 +992,7 @@ XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
         xacc[i] = acc64;
     }
 }
+#endif	/* DEBUG_NOSTORE */
 
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
 /*XXH_FORCE_INLINE*/ void
