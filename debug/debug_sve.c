@@ -780,6 +780,69 @@ void vext_01(void* XXH_RESTRICT out,
 		: "v0"
 	);
 }
+
+void vscrum_01(void* XXH_RESTRICT out,
+	 const void* XXH_RESTRICT in)
+{
+	uint64_t prime = XXH_PRIME32_1;
+
+	/*
+	 * MUL instruction doesn't support value D of .<T> field.
+	 * It only supports value B, H and S of .<T> field.
+	 */
+	asm volatile (
+		"dup v0.2d, %[prm]\n\t"
+		"ld1 {v2.2d}, [%[out]]\n\t"
+		"ld1 {v1.2d}, [%[in]]\n\t"
+		"ushr v3.2d, v2.2d, #47\n\t"
+		"eor v2.16b, v1.16b, v2.16b\n\t"
+		"eor v2.16b, v3.16b, v2.16b\n\t"
+		"xtn v3.2s, v2.2d\n\t"
+		"shrn v2.2s, v2.2d, #32\n\t"
+		"umull v2.2d, v2.2s, v0.2s\n\t"
+		"shl v2.2d, v2.2d, #32\n\t"
+		"umlal v2.2d, v3.2s, v0.2s\n\t"
+		"st1 {v2.2d}, [%[out]]\n\t"
+		: /* no output */
+		: [out] "r" (out), [in] "r" (in), [prm] "r" (prime)
+		: "v0" /* prm */, "v1" /* key */, "v2" /* acc */, "v3" /* shf */
+	);
+}
+
+void __attribute__((optnone))
+vscrum_02(void* XXH_RESTRICT out,
+	 const void* XXH_RESTRICT in)
+{
+	uint64_t prime = XXH_PRIME32_1;
+	uint64_t offset;
+
+	/*
+	 * MUL instruction doesn't support value D of .<T> field.
+	 * It only supports value B, H and S of .<T> field.
+	 */
+	asm volatile (
+		"dup	v0.4s, %w[prm]\n\t"
+		"mov	%[off], #0\n\t"
+		".Lloop%=:\n\t"
+		"ldr	q2, [%[out], %[off]]\n\t"
+		"ldr	q1, [%[in], %[off]]\n\t"
+		"ushr	v3.2d, v2.2d, #47\n\t"
+		"eor	v2.16b, v1.16b, v2.16b\n\t"
+		"eor	v2.16b, v3.16b, v2.16b\n\t"
+		"xtn	v3.2s, v2.2d\n\t"	// low 64-bit of v3 is used
+		"shrn	v2.2s, v2.2d, #32\n\t"	// low 64-bit of v2 is used
+		"umull	v2.2d, v2.2s, v0.2s\n\t"
+		"shl	v2.2d, v2.2d, #32\n\t"
+		"umlal	v2.2d, v3.2s, v0.2s\n\t"
+		"str	q2, [%[out], %[off]]\n\t"
+		"add	%[off], %[off], #0x10\n\t"
+		"cmp	%[off], #0x40\n\t"
+		"b.ne	.Lloop%=\n\t"
+		: /* no output */
+		: [out] "r" (out), [in] "r" (in), [prm] "r" (prime), [off] "r" (offset)
+		: "v0" /* prm */, "v1" /* key */, "v2" /* acc */, "v3" /* shf */
+	);
+}
 #endif	/* __ARM_NEON__ */
 
 
@@ -1021,7 +1084,8 @@ out_in1:
 #define LOOP_CNT	10000000
 
 
-void perf_accum(char *name, f_accum fn)
+void __attribute__((optnone))
+perf_accum(char *name, f_accum fn)
 {
 	unsigned char in1[64], in2[64];
 	unsigned char out1[64];
@@ -1056,7 +1120,8 @@ void perf_accum(char *name, f_accum fn)
 #endif
 }
 
-void perf_scrum(char *name, f_scrum fn)
+void __attribute__((optnone))
+perf_scrum(char *name, f_scrum fn)
 {
 	unsigned char in1[64];
 	unsigned char out1[64];
@@ -1140,10 +1205,14 @@ int main(int argc, char **argv)
 	if (flag_perf) {
 		perf_accum("accum neon", XXH3_accumulate_512_neon);
 		perf_scrum("scrum neon", XXH3_scrambleAcc_neon);
+		perf_scrum("vscrum_01", vscrum_01);
+		perf_scrum("vscrum_02", vscrum_02);
 	} else {
 		//test_accum("vext_01", vext_01);
 		test_accum("accum neon", XXH3_accumulate_512_neon, 512);
 		test_scrum("scrum neon", XXH3_scrambleAcc_neon, 512);
+		test_scrum("vscrum_01", vscrum_01, 512);
+		test_scrum("vscrum_02", vscrum_02, 512);
 	}
 #endif	/* ARM_NEON */
 	if (flag_perf) {
