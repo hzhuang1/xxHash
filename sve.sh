@@ -11,15 +11,11 @@ OPTION="clang13+sve+arch"
 #OPTION="gcc11+sve"
 #OPTION="gcc11+neon"
 #OPTION="gcc11+scalar"
-DEBUG_NOSTORE=1
 
 PWD=`pwd`
 WORKSPACE=$PWD
 
 check_option() {
-	if [ ${DEBUG_NOSTORE} ]; then
-		export TEST_FLAGS="-DDEBUG_NOSTORE=1"
-	fi
 	case $OPTION in
 	"clang13+sve+arch")
 		export PATH=$PATH:$CLANG13_PATH
@@ -110,32 +106,61 @@ build_debug() {
 
 run_debug() {
 	cd $WORKSPACE/debug
-	./debug_sve -p
+	./debug_sve $SVE_OPT
 }
 
+usage() {
+	echo "./sve.sh -b         \"Run xxhash bench case\""
+	echo "         -t         \"Run xxhash test case\""
+	echo "         -d func    \"Run debug case to verify function\""
+	echo "         -d perf    \"Run debug case for performance\""
+	echo "         -d nostore \"Run debug case without store\""
+}
+
+while getopts 'bhtd:' arg
+do
+	case $arg in
+	b)
+		ACTION="xxhash_bench"
+		;;
+	h)
+		usage
+		;;
+	t)
+		ACTION="xxhash_test"
+		;;
+	d)
+		ACTION="debug"
+		case $OPTARG in
+		"func")
+			;;
+		"nostore")
+			# performance test without store instructions
+			export TEST_FLAGS="-DDEBUG_NOSTORE=1"
+			export SVE_OPT="-p"
+			;;
+		"perf")
+			export SVE_OPT="-p"
+			;;
+		esac
+		;;
+	esac
+done
+
 check_option
-build_xxhash
-build_debug
-run_debug
-build_bench
-run_bench
 
-#make clean
-#PATH=$PATH:$CLANG13_PATH CPP_FLAGS=XXH_VECTOR=XXH_SVE DEBUGFLAGS="-march=armv8-a+sve" make test
+[ -z $ACTION ] && usage
 
-#make clean
-#PATH=$PATH:$CLANG13_PATH CPP_FLAGS=XXH_VECTOR=XXH_SVE CFLAGS="-march=armv8-a+sve" make clangtest
-#PATH=$PATH:$CLANG13_PATH CPP_FLAGS=XXH_VECTOR=XXH_SVE CFLAGS="-march=armv8.6-a+sve -msve-vector-bits=256" make clangtest
-
-#cd tests/bench
-#echo "run make 3"
-#make clean
-#make
-#CFLAGS="-march=armv8-a+nosimd" make
-#CFLAGS="-march=armv8-a+nosimd" make
-#PATH=$PATH:$CLANG13_PATH CC=clang CFLAGS="-march=armv8-a+sve" make
-#PATH=$PATH:$CLANG13_PATH CC=clang CFLAGS="-march=armv8-a+nosimd" make
-#PATH=$PATH:$CLANG13_PATH CC=clang CFLAGS="-march=armv8-a+sve -no-fvectorize" make
-#PATH=$PATH:$CLANG13_PATH CC=clang CFLAGS="-march=armv8.6-a+sve -msve-vector-bits=256" make
-
-#./benchHash --n=1 --mins=2 --maxs=2
+case $ACTION in
+	"xxhash_bench")
+		build_bench
+		run_bench
+		;;
+	"xxhash_test")
+		build_xxhash
+		;;
+	"debug")
+		build_debug
+		run_debug
+		;;
+esac
