@@ -427,7 +427,7 @@ void svmad_05(void* XXH_RESTRICT out,
 		acc  = svld1_u64(pg, (uint64_t *)out + i);
 		data = svld1_u64(pg, (uint64_t *)in1 + i);
 		key  = svld1_u64(pg, (uint64_t *)in2 + i);
-		mix  = sveor_u64_m(pg, data, key); 
+		mix  = sveor_u64_m(pg, data, key);
 		mix_hi = svlsr_u64_m(pg, mix, shift);
 		mix_lo = svand_n_u64_m(pg, mix, 0xffffffff);
 		mix = svmad_u64_m(pg, mix_lo, mix_hi, acc);
@@ -648,9 +648,9 @@ void svest_08(void* XXH_RESTRICT out,
 	);
 }
 
-#if defined(DEBUG_NOSTORE)
 #pragma GCC push_options
 #pragma GCC optimize ("O0")
+#if defined(DEBUG_NOSTORE)
 void svest_09(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
@@ -677,7 +677,6 @@ void svest_09(void* XXH_RESTRICT out,
 		: "cc", "z0", "z1" /* clobber register */
 	);
 }
-#pragma GCC pop_options
 #else
 void svest_09(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
@@ -706,6 +705,7 @@ void svest_09(void* XXH_RESTRICT out,
 	);
 }
 #endif	/* DEBUG_NOSTORE */
+#pragma GCC pop_options
 
 /*
  * Reorder 64-bit data by index & tbl.
@@ -841,9 +841,9 @@ void vscrum_01(void* XXH_RESTRICT out,
 	);
 }
 
-#if defined(DEBUG_NOSTORE)
 #pragma GCC push_options
 #pragma GCC optimize ("O0")
+#if defined(DEBUG_NOSTORE)
 void vscrum_02(void* XXH_RESTRICT out,
 	 const void* XXH_RESTRICT in)
 {
@@ -877,7 +877,6 @@ void vscrum_02(void* XXH_RESTRICT out,
 		: "v0" /* prm */, "v1" /* key */, "v2" /* acc */, "v3" /* shf */
 	);
 }
-#pragma GCC pop_options
 #else
 void vscrum_02(void* XXH_RESTRICT out,
 	 const void* XXH_RESTRICT in)
@@ -913,6 +912,7 @@ void vscrum_02(void* XXH_RESTRICT out,
 	);
 }
 #endif	/* DEBUG_NOSTORE */
+#pragma GCC pop_options
 #endif	/* __ARM_NEON__ */
 
 
@@ -935,6 +935,51 @@ XXH_FORCE_INLINE xxh_u64 XXH_xorshift64(xxh_u64 v64, int shift)
     return v64 ^ (v64 >> shift);
 }
 
+#if defined(DEBUG_NOSTORE)
+/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
+XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
+		const void* XXH_RESTRICT input,
+		const void* XXH_RESTRICT secret)
+{
+	xxh_u64* const xacc = (xxh_u64*) acc; /* presumed aligned */
+	const xxh_u8* const xinput  = (const xxh_u8*) input;  /* no alignment restriction */
+	const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
+	size_t i;
+	xxh_u64 acc0, acc1;
+
+	XXH_ASSERT(((size_t)acc & (XXH_ACC_ALIGN-1)) == 0);
+	for (i=0; i < XXH_ACC_NB; i++) {
+	//for (i=0; i < 2; i++) {
+		xxh_u64 data_val;
+		xxh_u64 data_key;
+		memcpy(&data_val, xinput + 8*i, sizeof(xxh_u64));
+		memcpy(&data_key, xsecret + 8*i, sizeof(xxh_u64));
+		data_key = data_val ^ data_key;
+		acc0 = xacc[i ^ 1];
+		acc1 = xacc[i];
+		acc0 += data_val; /* swap adjacent lanes */
+		acc1 += (data_key & 0xFFFFFFFF) * ((data_key >> 32) & 0xFFFFFFFF);
+	}
+}
+
+/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
+XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
+{
+    xxh_u64* const xacc = (xxh_u64*) acc;   /* presumed aligned */
+    const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
+    size_t i;
+    XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
+    for (i=0; i < XXH_ACC_NB; i++) {
+	xxh_u64 key64;
+        xxh_u64 acc64 = xacc[i];
+	memcpy(&key64, xsecret + 8*i, sizeof(xxh_u64));
+	acc64 = acc64 ^ (acc64 >> 47);
+        acc64 ^= key64;
+        acc64 *= XXH_PRIME32_1;
+        //xacc[i] = acc64;
+    }
+}
+#else
 /*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 		const void* XXH_RESTRICT input,
@@ -954,28 +999,6 @@ XXH3_accumulate_512_scalar(void* XXH_RESTRICT acc,
 	}
 }
 
-#if defined(DEBUG_NOSTORE)
-#pragma GCC push_options
-#pragma GCC optimize ("O0")
-/*XXH_FORCE_INLINE*/ void
-XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
-{
-    xxh_u64* const xacc = (xxh_u64*) acc;   /* presumed aligned */
-    const xxh_u8* const xsecret = (const xxh_u8*) secret;   /* no alignment restriction */
-    size_t i;
-    XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
-    for (i=0; i < XXH_ACC_NB; i++) {
-        xxh_u64 acc64 = xacc[i];
-	xxh_u64 key64;
-	memcpy(&key64, xsecret + 8*i, sizeof(xxh_u64));
-	acc64 = acc64 ^ (acc64 >> 47);
-        acc64 ^= key64;
-        acc64 *= XXH_PRIME32_1;
-        //xacc[i] = acc64;
-    }
-}
-#pragma GCC pop_options
-#else
 /*XXH_FORCE_INLINE*/ void
 XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 {
@@ -995,7 +1018,8 @@ XXH3_scrambleAcc_scalar(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 #endif	/* DEBUG_NOSTORE */
 
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
-/*XXH_FORCE_INLINE*/ void
+#if defined(DEBUG_NOSTORE)
+/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
 XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
                     const void* XXH_RESTRICT input,
                     const void* XXH_RESTRICT secret)
@@ -1033,7 +1057,7 @@ XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
     }
 }
 
-/*XXH_FORCE_INLINE*/ void
+/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
 XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 {
     XXH_ASSERT((((size_t)acc) & 15) == 0);
@@ -1085,7 +1109,99 @@ XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
             }
     }   }
 }
-#endif
+#else
+/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
+XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
+                    const void* XXH_RESTRICT input,
+                    const void* XXH_RESTRICT secret)
+{
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
+    {
+        uint64x2_t* const xacc = (uint64x2_t *) acc;
+        /* We don't use a uint32x4_t pointer because it causes bus errors on ARMv7. */
+        uint8_t const* const xinput = (const uint8_t *) input;
+        uint8_t const* const xsecret  = (const uint8_t *) secret;
+
+        size_t i;
+        for (i=0; i < XXH_STRIPE_LEN / sizeof(uint64x2_t); i++) {
+	//for (i=0; i < 1; i++) {
+            /* data_vec = xinput[i]; */
+            uint8x16_t data_vec    = vld1q_u8(xinput  + (i * 16));
+            /* key_vec  = xsecret[i];  */
+            uint8x16_t key_vec     = vld1q_u8(xsecret + (i * 16));
+            uint64x2_t data_key;
+            uint32x2_t data_key_lo, data_key_hi;
+            /* xacc[i] += swap(data_vec); */
+            uint64x2_t const data64  = vreinterpretq_u64_u8(data_vec);
+            uint64x2_t const swapped = vextq_u64(data64, data64, 1);
+            xacc[i] = vaddq_u64 (xacc[i], swapped);
+            /* data_key = data_vec ^ key_vec; */
+            data_key = vreinterpretq_u64_u8(veorq_u8(data_vec, key_vec));
+            /* data_key_lo = (uint32x2_t) (data_key & 0xFFFFFFFF);
+             * data_key_hi = (uint32x2_t) (data_key >> 32);
+             * data_key = UNDEFINED; */
+            XXH_SPLIT_IN_PLACE(data_key, data_key_lo, data_key_hi);
+            /* xacc[i] += (uint64x2_t) data_key_lo * (uint64x2_t) data_key_hi; */
+            xacc[i] = vmlal_u32 (xacc[i], data_key_lo, data_key_hi);
+
+        }
+    }
+}
+
+/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
+XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
+{
+    XXH_ASSERT((((size_t)acc) & 15) == 0);
+
+    {   uint64x2_t* xacc       = (uint64x2_t*) acc;
+        uint8_t const* xsecret = (uint8_t const*) secret;
+        uint32x2_t prime       = vdup_n_u32 (XXH_PRIME32_1);
+
+        size_t i;
+        for (i=0; i < XXH_STRIPE_LEN/sizeof(uint64x2_t); i++) {
+            /* xacc[i] ^= (xacc[i] >> 47); */
+            uint64x2_t acc_vec  = xacc[i];
+            uint64x2_t shifted  = vshrq_n_u64 (acc_vec, 47);
+            uint64x2_t data_vec = veorq_u64   (acc_vec, shifted);
+
+            /* xacc[i] ^= xsecret[i]; */
+            uint8x16_t key_vec  = vld1q_u8(xsecret + (i * 16));
+            uint64x2_t data_key = veorq_u64(data_vec, vreinterpretq_u64_u8(key_vec));
+
+            /* xacc[i] *= XXH_PRIME32_1 */
+            uint32x2_t data_key_lo, data_key_hi;
+            /* data_key_lo = (uint32x2_t) (xacc[i] & 0xFFFFFFFF);
+             * data_key_hi = (uint32x2_t) (xacc[i] >> 32);
+             * xacc[i] = UNDEFINED; */
+            XXH_SPLIT_IN_PLACE(data_key, data_key_lo, data_key_hi);
+            {   /*
+                 * prod_hi = (data_key >> 32) * XXH_PRIME32_1;
+                 *
+                 * Avoid vmul_u32 + vshll_n_u32 since Clang 6 and 7 will
+                 * incorrectly "optimize" this:
+                 *   tmp     = vmul_u32(vmovn_u64(a), vmovn_u64(b));
+                 *   shifted = vshll_n_u32(tmp, 32);
+                 * to this:
+                 *   tmp     = "vmulq_u64"(a, b); // no such thing!
+                 *   shifted = vshlq_n_u64(tmp, 32);
+                 *
+                 * However, unlike SSE, Clang lacks a 64-bit multiply routine
+                 * for NEON, and it scalarizes two 64-bit multiplies instead.
+                 *
+                 * vmull_u32 has the same timing as vmul_u32, and it avoids
+                 * this bug completely.
+                 * See https://bugs.llvm.org/show_bug.cgi?id=39967
+                 */
+                uint64x2_t prod_hi = vmull_u32 (data_key_hi, prime);
+                /* xacc[i] = prod_hi << 32; */
+                xacc[i] = vshlq_n_u64(prod_hi, 32);
+                /* xacc[i] += (prod_hi & 0xFFFFFFFF) * XXH_PRIME32_1; */
+                xacc[i] = vmlal_u32(xacc[i], data_key_lo, prime);
+            }
+    }   }
+}
+#endif	/* DEBUG_NOSTORE */
+#endif	/* __ARM_NEON__ */
 
 void empty_accum( void* XXH_RESTRICT acc,
 	const void* XXH_RESTRICT input,
@@ -1267,23 +1383,27 @@ int main(int argc, char **argv)
 		/*
 		//perf_accum("svmad_04", svmad_04);
 		*/
+#if !defined(DEBUG_NOSTORE)
 		perf_accum("svmad_05", svmad_05);
-		perf_scrum("scrum_01", scrum_01);
 		perf_scrum("scrum_02", scrum_02);
+#endif	/* DEBUG_NOSTORE */
 		/*
+		perf_scrum("scrum_01", scrum_01);
 		perf_accum("empty_accum", empty_accum);
 		perf_scrum("empty_scrum", empty_scrum);
-		*/
 		perf_scrum("svest_03", svest_03);
 		perf_scrum("svest_04", svest_04);
 		perf_scrum("svest_05", svest_05);
 		perf_scrum("svest_06", svest_06);
 		perf_scrum("svest_07", svest_07);
 		perf_scrum("svest_08", svest_08);
+		*/
 		perf_scrum("svest_09", svest_09);
 	} else {
+#if !defined(DEBUG_NOSTORE)
 		test_accum("svmad_05", svmad_05, 1024);
 		test_scrum("scrum_02", scrum_02, 1024);
+#endif	/* DEBUG_NOSTORE */
 		test_scrum("svest_09", svest_09, 1024);
 		//test_accum("svext_01", svext_01, 512);
 		//test_accum("svrev_01", svrev_01, 2048);
