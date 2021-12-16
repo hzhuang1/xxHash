@@ -3148,7 +3148,6 @@ XXH_FORCE_INLINE xxh_u64x2 XXH_vec_mule(xxh_u32x4 a, xxh_u32x4 b)
 #    include <mmintrin.h>   /* https://msdn.microsoft.com/fr-fr/library/84szxsww(v=vs.90).aspx */
 #    define XXH_PREFETCH(ptr)  _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 #  elif defined(__GNUC__) && ( (__GNUC__ >= 4) || ( (__GNUC__ == 3) && (__GNUC_MINOR__ >= 1) ) )
-//#    define XXH_PREFETCH(ptr)  __builtin_prefetch((ptr), 0 /* rw==read */, 0 /* locality */)
 #    define XXH_PREFETCH(ptr)  __builtin_prefetch((ptr), 0 /* rw==read */, 3 /* locality */)
 #  else
 #    define XXH_PREFETCH(ptr) (void)(ptr)  /* disabled */
@@ -4243,6 +4242,32 @@ XXH3_scrambleAcc_sve(void* XXH_RESTRICT acc,
         svst1(pg, (uint64_t *)acc + i, xacc);
     }
 }
+
+XXH_FORCE_INLINE void
+XXH3_initCustomSecret_sve(void* XXH_RESTRICT customSecret, xxh_u64 seed64)
+{
+    const xxh_u8* kSecretPtr = XXH3_kSecret;
+    XXH_STATIC_ASSERT((XXH_SECRET_DEFAULT_SIZE & 15) == 0);
+
+    XXH_ASSERT(kSecretPtr == XXH3_kSecret);
+    {
+        svuint64_t pseed = svdup_n_u64(seed64);
+	svuint64_t nseed = svdup_n_u64(-seed64);
+	svuint64_t mix, xin;
+	svbool_t p1 = svptrue_b64();
+	svbool_t pg;
+	int i;
+
+	mix = svtrn1(pseed, nseed);
+	for (i = 0;
+             svptest_first(p1, pg=svwhilelt_b64(i,XXH_SECRET_DEFAULT_SIZE>>3));
+             i += svcntd()) {
+            xin = svld1_u64(pg, (const uint64_t *)(const void *)kSecretPtr + i);
+	    xin = svadd_u64_m(pg, xin, mix);
+	    svst1(pg, (uint64_t *)customSecret + i, xin);
+        }
+    }
+}
 #endif
 
 /* scalar variants - universal */
@@ -4386,7 +4411,7 @@ typedef void (*XXH3_f_initCustomSecret)(void* XXH_RESTRICT, xxh_u64);
 
 #define XXH3_accumulate_512 XXH3_accumulate_512_sve
 #define XXH3_scrambleAcc    XXH3_scrambleAcc_sve
-#define XXH3_initCustomSecret XXH3_initCustomSecret_scalar
+#define XXH3_initCustomSecret XXH3_initCustomSecret_sve
 #else /* scalar */
 
 #define XXH3_accumulate_512 XXH3_accumulate_512_scalar
