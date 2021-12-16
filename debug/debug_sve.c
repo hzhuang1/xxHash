@@ -438,6 +438,49 @@ void svmad_05(void* XXH_RESTRICT out,
 	}
 }
 
+static uint64_t u64_idx[32] __attribute__((aligned(8)));
+
+void svacc_init(void)
+{
+	/* create index from 1 with step 1 */
+	svuint64_t idx = svindex_u64(1, 1);
+	svuint64_t subv = svdup_u64(2);
+	svbool_t p0 = svpfalse_b();
+	svbool_t p1 = svptrue_b64();
+	svbool_t pg = svwhilelt_b64(0, 8);;
+	/* convert from sequence [1,2,3,4,...] to [1,0,3,2,...] */
+	p0 = svtrn1_b64(p0, p1);
+	idx = svsub_u64_m(p0, idx, subv);
+	svst1(p1, (uint64_t *)&u64_idx[0], idx);
+}
+
+void svmad_06(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	svuint64_t data, key, mix, mix_hi, mix_lo;
+	svuint64_t acc, idx, swapped;
+	svuint64_t shift = svdup_u64(32);
+	svbool_t p1 = svptrue_b64();
+	svbool_t pg;
+	int i;
+
+	idx = svld1_u64(p1, (uint64_t *)&u64_idx[0]);
+	for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
+		acc  = svld1_u64(pg, (uint64_t *)out + i);
+		data = svld1_u64(pg, (uint64_t *)in1 + i);
+		key  = svld1_u64(pg, (uint64_t *)in2 + i);
+		mix  = sveor_u64_m(pg, data, key);
+		mix_hi = svlsr_u64_m(pg, mix, shift);
+		mix_lo = svand_n_u64_m(pg, mix, 0xffffffff);
+		mix = svmad_u64_m(pg, mix_lo, mix_hi, acc);
+		/* reorder all elements in one vector by new index value */
+		swapped = svtbl_u64(data, idx);
+		acc = svadd_u64_m(pg, swapped, mix);
+		svst1(pg, (uint64_t *)out + i, acc);
+	}
+}
+
 void svest_01(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1,
 	const void* XXH_RESTRICT in2)
@@ -1110,7 +1153,7 @@ XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
     }   }
 }
 #else
-/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
+/*XXH_FORCE_INLINE*/ void
 XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
                     const void* XXH_RESTRICT input,
                     const void* XXH_RESTRICT secret)
@@ -1148,7 +1191,7 @@ XXH3_accumulate_512_neon( void* XXH_RESTRICT acc,
     }
 }
 
-/*XXH_FORCE_INLINE*/ void __attribute__((optnone))
+/*XXH_FORCE_INLINE*/ void
 XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 {
     XXH_ASSERT((((size_t)acc) & 15) == 0);
@@ -1379,12 +1422,14 @@ int main(int argc, char **argv)
 	}
 
 #if defined(__ARM_FEATURE_SVE)
+	svacc_init();
 	if (flag_perf) {
 		/*
 		//perf_accum("svmad_04", svmad_04);
 		*/
 #if !defined(DEBUG_NOSTORE)
 		perf_accum("svmad_05", svmad_05);
+		perf_accum("svmad_06", svmad_06);
 		perf_scrum("scrum_02", scrum_02);
 #endif	/* DEBUG_NOSTORE */
 		/*
@@ -1402,6 +1447,7 @@ int main(int argc, char **argv)
 	} else {
 #if !defined(DEBUG_NOSTORE)
 		test_accum("svmad_05", svmad_05, 1024);
+		test_accum("svmad_06", svmad_06, 1024);
 		test_scrum("scrum_02", scrum_02, 1024);
 #endif	/* DEBUG_NOSTORE */
 		test_scrum("svest_09", svest_09, 1024);
