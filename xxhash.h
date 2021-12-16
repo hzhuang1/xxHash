@@ -2700,11 +2700,11 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(const XXH64_canonical_t* src
 #  elif defined(__SSE2__)
 #    include <emmintrin.h>
 #  elif (defined(__ARM_NEON__) || defined(__ARM_NEON)) \
-  && !(defined(__ARM_SVE__) || defined(__ARM_SVE))
+  && !defined(__ARM_FEATURE_SVE)
 #    define inline __inline__  /* circumvent a clang bug */
 #    include <arm_neon.h>
 #    undef inline
-#  elif defined(__ARM_SVE__) || defined(__ARM_SVE)
+#  elif defined(__ARM_FEATURE_SVE)
 #    include <arm_sve.h>
 #  endif
 #elif defined(_MSC_VER)
@@ -2855,7 +2855,7 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
 #    define XXH_VECTOR XXH_SSE2
 #  elif defined(__GNUC__) /* msvc support maybe later */ \
   && (defined(__ARM_NEON__) || defined(__ARM_NEON)) \
-  && (!(defined(__ARM_SVE__) || defined(__ARM_SVE))) \
+  && !defined(__ARM_FEATURE_SVE) \
   && (defined(__LITTLE_ENDIAN__) /* We only support little endian NEON */ \
     || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 #    define XXH_VECTOR XXH_NEON
@@ -2864,7 +2864,7 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
      && defined(__GNUC__) /* TODO: IBM XL */
 #    define XXH_VECTOR XXH_VSX
 #  elif defined(__GNUC__) /* msvc support maybe later */ \
-  && (defined(__ARM_SVE__) || defined(__ARM_SVE)) \
+  && defined(__ARM_FEATURE_SVE) \
   && (defined(__LITTLE_ENDIAN__) /* We only support little endian SVE */ \
     || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 #    define XXH_VECTOR XXH_SVE
@@ -2891,6 +2891,8 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
 #  elif XXH_VECTOR == XXH_VSX   /* vsx */
 #     define XXH_ACC_ALIGN 16
 #  elif XXH_VECTOR == XXH_AVX512  /* avx512 */
+#     define XXH_ACC_ALIGN 64
+#  elif XXH_VECTOR == XXH_SVE   /* sve */
 #     define XXH_ACC_ALIGN 64
 #  endif
 #endif
@@ -3146,6 +3148,7 @@ XXH_FORCE_INLINE xxh_u64x2 XXH_vec_mule(xxh_u32x4 a, xxh_u32x4 b)
 #    include <mmintrin.h>   /* https://msdn.microsoft.com/fr-fr/library/84szxsww(v=vs.90).aspx */
 #    define XXH_PREFETCH(ptr)  _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 #  elif defined(__GNUC__) && ( (__GNUC__ >= 4) || ( (__GNUC__ == 3) && (__GNUC_MINOR__ >= 1) ) )
+//#    define XXH_PREFETCH(ptr)  __builtin_prefetch((ptr), 0 /* rw==read */, 0 /* locality */)
 #    define XXH_PREFETCH(ptr)  __builtin_prefetch((ptr), 0 /* rw==read */, 3 /* locality */)
 #  else
 #    define XXH_PREFETCH(ptr) (void)(ptr)  /* disabled */
@@ -4191,7 +4194,7 @@ XXH3_accumulate_512_sve(void* XXH_RESTRICT acc,
     XXH_ASSERT((((size_t)acc) & 15) == 0);
     {
         svuint64_t data, key, mix, mix_hi, mix_lo;
-        svuint64_t acc, idx, swapped;
+        svuint64_t xacc, idx, swapped;
         svuint64_t shift = svdup_u64(32);
         svuint64_t subv = svdup_u64(2);
         svbool_t p0 = svpfalse_b();
@@ -4205,17 +4208,17 @@ XXH3_accumulate_512_sve(void* XXH_RESTRICT acc,
         p1 = svtrn1_b64(p0, p1);
         idx = svsub_u64_m(p1, idx, subv);
 	for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
-            acc  = svld1_u64(pg, (uint64_t *)out + i);
-            data = svld1_u64(pg, (uint64_t *)in1 + i);
-            key  = svld1_u64(pg, (uint64_t *)in2 + i);
+            xacc  = svld1_u64(pg, (uint64_t *)acc + i);
+            data = svld1_u64(pg, (const uint64_t *)input + i);
+            key  = svld1_u64(pg, (const uint64_t *)secret + i);
             mix  = sveor_u64_z(pg, data, key);
             mix_hi = svlsr_u64_z(pg, mix, shift);
             mix_lo = svextw_u64_z(pg, mix);
-            mix = svmad_u64_z(pg, mix_lo, mix_hi, acc);
+            mix = svmad_u64_z(pg, mix_lo, mix_hi, xacc);
             /* reorder all elements in one vector by new index value */
             swapped = svtbl_u64(data, idx);
-            acc = svadd_u64_z(pg, swapped, mix);
-            svst1(pg, (uint64_t *)out + i, acc);
+            xacc = svadd_u64_z(pg, swapped, mix);
+            svst1(pg, (uint64_t *)acc + i, xacc);
         }
     }
 }
@@ -4224,19 +4227,20 @@ XXH_FORCE_INLINE void
 XXH3_scrambleAcc_sve(void* XXH_RESTRICT acc,
                const void* XXH_RESTRICT secret)
 {
-    svuint64_t xin, acc, data;
+    svuint64_t xin, xacc, data;
+    svbool_t p1 = svptrue_b64();
     svbool_t pg;
     int i;
 
     XXH_ASSERT((((size_t)acc) & (XXH_ACC_ALIGN-1)) == 0);
     for (i = 0; svptest_first(p1, pg=svwhilelt_b64(i,8)); i += svcntd()) {
-        xin  = svld1_u64(pg, (uint64_t *)in + i);
-        acc  = svld1_u64(pg, (uint64_t *)out + i);
-        data = svlsr_n_u64_m(pg, acc, 47);
-        acc  = sveor_u64_m(pg, xin, acc); 
-        acc = sveor_u64_m(pg, data, acc);
-        acc = svmul_n_u64_m(pg, acc, XXH_PRIME32_1);
-        svst1(pg, (uint64_t *)out + i, acc);
+        xin  = svld1_u64(pg, (const uint64_t *)secret + i);
+        xacc  = svld1_u64(pg, (uint64_t *)acc + i);
+        data = svlsr_n_u64_m(pg, xacc, 47);
+        xacc  = sveor_u64_m(pg, xin, xacc); 
+        xacc = sveor_u64_m(pg, data, xacc);
+        xacc = svmul_n_u64_m(pg, xacc, XXH_PRIME32_1);
+        svst1(pg, (uint64_t *)acc + i, xacc);
     }
 }
 #endif
