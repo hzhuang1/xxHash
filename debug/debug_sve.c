@@ -1603,12 +1603,13 @@ out_in1:
 
 #define LOOP_CNT	10000000
 
+static unsigned char in1[64] __attribute__((aligned(256)));
+static unsigned char in2[64] __attribute__((aligned(256)));
+static unsigned char out1[64] __attribute__((aligned(256)));
 
 void __attribute__((optnone))
 perf_accum(char *name, f_accum fn)
 {
-	unsigned char in1[64], in2[64];
-	unsigned char out1[64];
 	int i;
 #if defined(__AARCH64_CMODEL_SMALL__)
 	uint64_t t1, t2;
@@ -1643,8 +1644,6 @@ perf_accum(char *name, f_accum fn)
 void __attribute__((optnone))
 perf_scrum(char *name, f_scrum fn)
 {
-	unsigned char in1[64];
-	unsigned char out1[64];
 	int i;
 #if defined(__AARCH64_CMODEL_SMALL__)
 	uint64_t t1, t2;
@@ -1722,11 +1721,13 @@ int main(int argc, char **argv)
 		array[i] = 0x30 + i;
 	}
 #if defined(__ARM_FEATURE_SVE)
+	/*
 	measure_fn("svstore_01", svstore_01);
 	measure_fn("svmul_01", svmul_01);
 	measure_fn("svmul_02", svmul_02);
 	//measure_fn("svempty_01", svempty_01);
 	return 0;
+	*/
 	svacc_init();
 	if (flag_perf) {
 		/*
