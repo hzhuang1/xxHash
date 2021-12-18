@@ -35,16 +35,19 @@
 #define XXH_PRIME32_4  0x27D4EB2FU  /*!< 0b00100111110101001110101100101111 */
 #define XXH_PRIME32_5  0x165667B1U  /*!< 0b00010110010101100110011110110001 */
 
+#define MEASURE_LOOPS  0x100000000
+
 typedef void (*f_accum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT,
 		const void* XXH_RESTRICT);
 typedef void (*f_scrum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT);
+typedef void (*f_void)(void);
 
 void init_buf(unsigned char *buf, int blen)
 {
 	int i, len;
-	unsigned char c = 0;
+	unsigned char c = 0x0;
 	if ((blen < 16) || (blen % 16)) {
 		printf("blen is invalid:%d\n", blen);
 		return;
@@ -454,6 +457,242 @@ void svacc_init(void)
 	svst1(p1, (uint64_t *)&u64_idx[0], idx);
 }
 
+#if 0
+void svacc_init2(void)
+{
+	svbool_t p0, p1;
+	asm volatile (
+		"ptrue		p7.d\n\t"
+		"whilelt	%[p1].d, xzr, xzr\n\t"
+		"index		z0.d, #1, #1\n\t"
+		"mov		z1.d, #2\n\t"
+		"trn1		%[p1].d, %[p1].d, p7.d\n\t"
+		"sub		z7.d, %[p1]/m, z0.d, z1.d\n\t"
+		: /* no output */
+		: [p1] "Upl" (p1)
+		: "z0", "z1", "z7", "p7"
+	);
+}
+
+void svmul_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2,
+	const uint64_t loop)
+{
+	uint64_t i;
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"ld1d		z0.d, p0/z, [%[in1]]\n\t"
+		"ld1d		z1.d, p0/z, [%[in2]]\n\t"
+		".Lloop%=:\n\t"
+		"mul		z2.d, p0/m, z0.d, z1.d\n\t"
+		"cmp		[
+		: /* no output */
+		: [loop] "r" (loop), [i] "r" (i)
+		: "p0", "z0", "z1", "z2"
+	);
+}
+#endif
+
+void svempty_01(void)
+{
+	uint64_t cnt = 0xffffffff;
+	asm volatile (
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt)
+		:
+	);
+}
+
+/*
+ * Test svst1d_01 costs    243435153 counts
+ *static unsigned char array[64] __attribute__((aligned(32)));
+ * So it's caused by address alignment.
+ * aligned(x) means aligning with x bytes.
+ * aligned(8): 64-bit aligned
+ * aligned(32): 256-bit aligned
+ * aligned(256): 2048-bit aligned
+ */
+static unsigned char array[64] __attribute__((aligned(256)));
+/*
+ *  Counts are either 482827600 or 243501407.
+ *  Test svst1d_01 costs    482827600 counts
+ *  haojian@landingteam-sve:~/xxhash$ ./sve.sh -d test
+ *  Test svst1d_01 costs    243501407 counts
+ *static unsigned char array[64] __attribute__((aligned(8)));
+ */
+/*
+ * Test st1d instruction to save one vector. The test vector size is 512-bit.
+ */
+void svstore_01(void)
+{
+	uint64_t cnt = 0;
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"st1d		z0.d, p0, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "p0"
+	);
+}
+
+/*
+ * Four store instructions are used in svstore_02(). It needs four times of
+ * svstore_01().
+ */
+void svstore_02(void)
+{
+	uint64_t cnt = 0;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"str		q0, [%[out]]\n\t"
+		"str		q1, [%[out], #16]\n\t"
+		"str		q2, [%[out], #32]\n\t"
+		"str		q3, [%[out], #48]\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "v0"
+	);
+}
+
+void svstore_03(void)
+{
+	uint64_t cnt = 0;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"str		x0, [%[out]]\n\t"
+		"str		x1, [%[out], #8]\n\t"
+		"str		x2, [%[out], #16]\n\t"
+		"str		x3, [%[out], #24]\n\t"
+		"str		x0, [%[out], #32]\n\t"
+		"str		x1, [%[out], #40]\n\t"
+		"str		x2, [%[out], #48]\n\t"
+		"str		x3, [%[out], #56]\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "v0"
+	);
+}
+
+void svload_01(void)
+{
+	uint64_t cnt = 0;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "v0"
+	);
+}
+
+void svmul_01(void)
+{
+	uint64_t cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ld1d		z0.d, p0/z, [%[out]]\n\t"
+		"mov		z1.d, %[prm]\n\t"
+		".Lloop%=:\n\t"
+		"mov		z2.d, z0.d\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"mul		z2.d, p0/m, z2.d, z1.d\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt), [out] "r" (&array[0]), [prm] "r" (prime),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "v0"
+	);
+}
+
+/*
+ * svmul_01() multiply between 64-bit vector. svmul_02() multiply between
+ * 32-bit vector. And we cost same time.
+ *
+ * Test svmul_01 costs     376494720 counts
+ * Test svmul_02 costs     376423487 counts
+ */
+void svmul_02(void)
+{
+	uint64_t cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ld1d		z0.d, p0/z, [%[out]]\n\t"
+		"mov		z1.d, %[prm]\n\t"
+		".Lloop%=:\n\t"
+		"mov		z2.d, z0.d\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"mul		z2.s, p0/m, z2.s, z1.s\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: /* no output */
+		: [cnt] "r" (cnt), [out] "r" (&array[0]), [prm] "r" (prime),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "v0"
+	);
+}
+
+/*
+ * Reserve bit<31:4> in each 64-bit data lane.
+ * Can't insert any '0' bits in the bitmask operand of AND instruction.
+ */
+void svand_01(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"ld1d		z1.d, p0/z, [%[in1]]\n\t"
+		"and		z1.d, z1.d, #0xfffffff0\n\t"
+		"st1d		z1.d, p0, [%[out]]\n\t"
+		: /* no output */
+		: [out] "r" (out), [in1] "r" (in1)
+		: "p0", "z1"
+	);
+}
+
+/*
+ * Reserve bit<15:0> in each 64-bit data lane.
+ * Can't insert any '0' bits in the bitmask operand of AND instruction.
+ */
+void svand_02(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"ld1d		z1.d, p0/z, [%[in1]]\n\t"
+		"and		z1.d, z1.d, #0xffff\n\t"
+		"st1d		z1.d, p0, [%[out]]\n\t"
+		: /* no output */
+		: [out] "r" (out), [in1] "r" (in1)
+		: "p0", "z1"
+	);
+}
+
+/* svmad_06() works with svacc_init() together */
 void svmad_06(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1,
 	const void* XXH_RESTRICT in2)
@@ -480,6 +719,35 @@ void svmad_06(void* XXH_RESTRICT out,
 		svst1(pg, (uint64_t *)out + i, acc);
 	}
 }
+
+#if 0
+void svacc_07(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1,
+	const void* XXH_RESTRICT in2)
+{
+	uint64_t len;
+
+	asm volatile (
+		"ptrue		p0.d\n\t"
+		"mov		%w[len], #8\n\t"
+		"mov		z6.d, #32\n\t"
+		".Lloop%=:\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"ld1d		z2.d, p0/z, [%[in2], %[i], lsl #3]\n\t"
+		/* mix = data ^ key */
+		"eor		z3.d, p0/m, z1.d, z2.d\n\t"
+		/* mix_hi = mix >> 32 */
+		"lsr		z5.d, p0/m, z3.d, z6.d\n\t"
+		/* mix_lo = mix & 0xffffffff */
+		"and		z4.d, p0/m, z3.d,
+		/* index was stored in z7 before */
+		"tbl		z6.d, z1.d, z7.d\n\t"
+		:
+		: [out] "r" (out), [in1] "r" (in1), [in2] "r" (in2), [len] "r" (len)
+	);
+}
+#endif
 
 void svest_01(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1,
@@ -715,7 +983,7 @@ void svest_09(void* XXH_RESTRICT out,
 		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
 		/* save out */
 		//"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
-		:			/* output */
+		: /* output */
 		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime), [pg] "Upl" (pg)
 		: "cc", "z0", "z1" /* clobber register */
 	);
@@ -1407,6 +1675,35 @@ perf_scrum(char *name, f_scrum fn)
 #endif
 }
 
+void measure_fn(char *name, f_void fn)
+{
+#if defined(__AARCH64_CMODEL_SMALL__)
+	uint64_t t1, t2;
+#else
+	struct timespec start, end;
+	uint64_t us, ue;
+#endif
+
+	printf("Test %s", name);
+#if defined(__AARCH64_CMODEL_SMALL__)
+	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t1));
+	fn();
+	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t2));
+	printf("\tcosts %ld counts. Average loop costs %.5f counts.\n",
+		t2 - t1,
+		(double)(t2 - t1) / MEASURE_LOOPS);
+#else
+	clock_gettime(CLOCK_REALTIME, &start);
+	fn();
+	clock_gettime(CLOCK_REALTIME, &end);
+	ue = end.tv_nsec + end.tv_sec * 1000000000;
+	us = start.tv_nsec + start.tv_sec * 1000000000;
+	printf("\tcosts %ld sec and %ld nsec.\n",
+		(ue - us) / 1000000000,
+		(ue - us) % 1000000000);
+#endif
+}
+
 int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
@@ -1421,7 +1718,15 @@ int main(int argc, char **argv)
 		}
 	}
 
+	for (int i = 0; i < 64; i++) {
+		array[i] = 0x30 + i;
+	}
 #if defined(__ARM_FEATURE_SVE)
+	measure_fn("svstore_01", svstore_01);
+	measure_fn("svmul_01", svmul_01);
+	measure_fn("svmul_02", svmul_02);
+	//measure_fn("svempty_01", svempty_01);
+	return 0;
 	svacc_init();
 	if (flag_perf) {
 		/*
