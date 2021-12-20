@@ -551,6 +551,7 @@ void svstore_01(void)
 /*
  * Four store instructions are used in svstore_02(). It needs four times of
  * svstore_01().
+ * It could explain that the execution throughput of ST1D is 1.
  */
 void svstore_02(void)
 {
@@ -643,6 +644,37 @@ void svload_03(void)
 		"b.ne		.Lloop%=\n\t"
 		: [cnt] "+&r" (cnt), [i] "+&r" (i)/* no output */
 		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		:
+	);
+}
+
+/*
+ * svload_02() just loads one Q register.
+ * svload_03() just loads two Q registers.
+ * svload_04() just loads three Q registers.
+ * Test svload_02  costs 16922130 counts. Average loop costs 0.06304 counts.
+ * Test svload_03  costs 16931816 counts. Average loop costs 0.06308 counts.
+ * Test svload_04  costs 30251482 counts. Average loop costs 0.11270 counts.
+ * We can find that svload_02() and svload_03() are nearly same. svload_04()
+ * nearly costs twice than svload_02(). It could explain that the execution
+ * throughput of LD1D is 2.
+ */
+void svload_04(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"ld1d		z2.d, p0/z, [%[in2], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)/* no output */
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
 		  [lcnt] "i" (MEASURE_LOOPS)
 		:
 	);
@@ -1764,6 +1796,7 @@ int main(int argc, char **argv)
 	measure_fn("svmul_01", svmul_01);
 	measure_fn("svload_02", svload_02);
 	measure_fn("svload_03", svload_03);
+	measure_fn("svload_04", svload_04);
 	//measure_fn("svmul_02", svmul_02);
 	//measure_fn("svempty_01", svempty_01);
 	return 0;
