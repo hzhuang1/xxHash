@@ -1377,7 +1377,24 @@ void base_ld_01(void)
 		: [cnt] "+&r" (cnt), [i] "+&r" (i), [data] "=&r" (data)
 		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		: "memory", "cc", "p0", "z0", "z1", "z2"
+		: "memory", "cc"
+	);
+}
+
+void base_ld_02(void)
+{
+	uint64_t cnt, i, data;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i), [data] "=&r" (data)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1"
 	);
 }
 
@@ -1395,7 +1412,7 @@ void base_st_01(void)
 		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
 		  [data] "r" (data),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		: "memory", "cc", "p0", "z0", "z1", "z2"
+		: "memory", "cc"
 	);
 }
 
@@ -1413,7 +1430,42 @@ void base_ldst_01(void)
 		: [cnt] "+&r" (cnt), [i] "+&r" (i), [data] "+&r" (data)
 		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		: "memory", "cc", "p0", "z0", "z1", "z2"
+		: "memory", "cc"
+	);
+}
+
+void base_ldst_02(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1"
+	);
+}
+
+void base_scram_01(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1"
 	);
 }
 
@@ -1907,8 +1959,11 @@ int main(int argc, char **argv)
 		array[i] = 0x30 + i;
 	}
 	measure_fn("base_ld_01", base_ld_01);
+	measure_fn("base_ld_02", base_ld_02);
 	measure_fn("base_st_01", base_st_01);
 	measure_fn("base_ldst_01", base_ldst_01);
+	measure_fn("base_ldst_02", base_ldst_02);
+	measure_fn("base_scram_01", base_scram_01);
 #if defined(__ARM_FEATURE_SVE)
 	measure_fn("svstore_01", svstore_01);
 	measure_fn("svstore_02", svstore_02);
