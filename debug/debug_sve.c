@@ -35,7 +35,7 @@
 #define XXH_PRIME32_4  0x27D4EB2FU  /*!< 0b00100111110101001110101100101111 */
 #define XXH_PRIME32_5  0x165667B1U  /*!< 0b00010110010101100110011110110001 */
 
-#define MEASURE_LOOPS  0x100000000
+#define MEASURE_LOOPS  0x10000000
 
 typedef void (*f_accum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT,
@@ -43,6 +43,10 @@ typedef void (*f_accum)(void* XXH_RESTRICT,
 typedef void (*f_scrum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT);
 typedef void (*f_void)(void);
+
+static unsigned char in1[64] __attribute__((aligned(256)));
+static unsigned char in2[64] __attribute__((aligned(256)));
+static unsigned char out1[64] __attribute__((aligned(256)));
 
 void init_buf(unsigned char *buf, int blen)
 {
@@ -537,8 +541,8 @@ void svstore_01(void)
 		"subs		%[cnt], %[cnt], #1\n\t"
 		"st1d		z0.d, p0, [%[out]]\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: /* no output */
-		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (array),
 		  [lcnt] "i" (MEASURE_LOOPS)
 		: "p0"
 	);
@@ -560,8 +564,8 @@ void svstore_02(void)
 		"str		q3, [%[out], #48]\n\t"
 		"subs		%[cnt], %[cnt], #1\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: /* no output */
-		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (array),
 		  [lcnt] "i" (MEASURE_LOOPS)
 		: "v0"
 	);
@@ -583,8 +587,8 @@ void svstore_03(void)
 		"str		x3, [%[out], #56]\n\t"
 		"subs		%[cnt], %[cnt], #1\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: /* no output */
-		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (array),
 		  [lcnt] "i" (MEASURE_LOOPS)
 		: "v0"
 	);
@@ -604,6 +608,43 @@ void svload_01(void)
 		: [cnt] "r" (cnt), [out] "r" (&array[0]),
 		  [lcnt] "i" (MEASURE_LOOPS)
 		: "v0"
+	);
+}
+
+void svload_02(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i) /* no output */
+		: [lcnt] "i" (MEASURE_LOOPS),
+		  [out] "r" (out1)
+		: "memory", "cc"
+	);
+}
+
+void svload_03(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)/* no output */
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		:
 	);
 }
 
@@ -959,36 +1000,9 @@ void svest_08(void* XXH_RESTRICT out,
 	);
 }
 
+#if defined(DEBUG_NOSTORE)
 #pragma GCC push_options
 #pragma GCC optimize ("O0")
-#if defined(DEBUG_NOSTORE)
-void svest_09(void* XXH_RESTRICT out,
-	const void* XXH_RESTRICT in1)
-{
-	svbool_t pg;
-	uint64_t i = 0, len = 8, cnt = 0;
-	uint64_t prime = XXH_PRIME32_1;
-
-	__asm__ __volatile__ (
-		"ptrue		%[pg].d, VL8\n\t"
-		/* load prime32_1 */
-		"mov		z3.d, %[prm]\n\t"
-		/* load in1 */
-		"ld1d		z1.d, %[pg]/z, [%[in1], %[i], lsl #3]\n\t"
-		/* load out */
-		"ld1d		z0.d, %[pg]/z, [%[out], %[i], lsl #3]\n\t"
-		"eor		z1.d, z0.d, z1.d\n\t"
-		"lsr		z2.d, z0.d, #47\n\t"
-		"eor		z0.d, z1.d, z2.d\n\t"
-		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
-		/* save out */
-		//"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
-		: /* output */
-		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime), [pg] "Upl" (pg)
-		: "cc", "z0", "z1" /* clobber register */
-	);
-}
-#else
 void svest_09(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
@@ -1010,13 +1024,40 @@ void svest_09(void* XXH_RESTRICT out,
 		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
 		/* save out */
 		"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
+		: /* output */
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime), [pg] "Upl" (pg)
+		: "cc", "z0", "z1" /* clobber register */
+	);
+}
+#pragma GCC pop_options
+#else
+void svest_09(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	uint64_t i = 0, len = 8, cnt = 0;
+	uint64_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		"ptrue		%[pg].d\n\t"
+		/* load in1 */
+		"ld1d		z1.d, %[pg]/z, [%[in1], %[i], lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, %[pg]/z, [%[out], %[i], lsl #3]\n\t"
+		/* load prime32_1 */
+		"mov		z3.d, %[prm]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
+		/* save out */
+		"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
 		:			/* output */
 		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [len] "r" (len), [prm] "r" (prime), [pg] "Upl" (pg)
 		: "cc", "z0", "z1" /* clobber register */
 	);
 }
 #endif	/* DEBUG_NOSTORE */
-#pragma GCC pop_options
 
 /*
  * Reorder 64-bit data by index & tbl.
@@ -1603,10 +1644,6 @@ out_in1:
 
 #define LOOP_CNT	10000000
 
-static unsigned char in1[64] __attribute__((aligned(256)));
-static unsigned char in2[64] __attribute__((aligned(256)));
-static unsigned char out1[64] __attribute__((aligned(256)));
-
 void __attribute__((optnone))
 perf_accum(char *name, f_accum fn)
 {
@@ -1721,13 +1758,15 @@ int main(int argc, char **argv)
 		array[i] = 0x30 + i;
 	}
 #if defined(__ARM_FEATURE_SVE)
-	/*
 	measure_fn("svstore_01", svstore_01);
+	measure_fn("svstore_02", svstore_02);
+	measure_fn("svstore_03", svstore_03);
 	measure_fn("svmul_01", svmul_01);
-	measure_fn("svmul_02", svmul_02);
+	measure_fn("svload_02", svload_02);
+	measure_fn("svload_03", svload_03);
+	//measure_fn("svmul_02", svmul_02);
 	//measure_fn("svempty_01", svempty_01);
 	return 0;
-	*/
 	svacc_init();
 	if (flag_perf) {
 		/*
@@ -1741,7 +1780,6 @@ int main(int argc, char **argv)
 		/*
 		perf_scrum("scrum_01", scrum_01);
 		perf_accum("empty_accum", empty_accum);
-		perf_scrum("empty_scrum", empty_scrum);
 		perf_scrum("svest_03", svest_03);
 		perf_scrum("svest_04", svest_04);
 		perf_scrum("svest_05", svest_05);
@@ -1749,6 +1787,7 @@ int main(int argc, char **argv)
 		perf_scrum("svest_07", svest_07);
 		perf_scrum("svest_08", svest_08);
 		*/
+		perf_scrum("empty_scrum", empty_scrum);
 		perf_scrum("svest_09", svest_09);
 	} else {
 #if !defined(DEBUG_NOSTORE)
