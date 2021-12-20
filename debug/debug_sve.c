@@ -605,10 +605,10 @@ void svload_01(void)
 		"subs		%[cnt], %[cnt], #1\n\t"
 		"ld1d		z0.d, p0/z, [%[out]]\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: /* no output */
-		: [cnt] "r" (cnt), [out] "r" (&array[0]),
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (array),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		: "v0"
+		: "p0", "z0"
 	);
 }
 
@@ -623,10 +623,10 @@ void svload_02(void)
 		"subs		%[cnt], %[cnt], #1\n\t"
 		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: [cnt] "+&r" (cnt), [i] "+&r" (i) /* no output */
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
 		: [lcnt] "i" (MEASURE_LOOPS),
 		  [out] "r" (out1)
-		: "memory", "cc"
+		: "memory", "cc", "p0", "z0"
 	);
 }
 
@@ -642,10 +642,10 @@ void svload_03(void)
 		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
 		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: [cnt] "+&r" (cnt), [i] "+&r" (i)/* no output */
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
 		: [out] "r" (out1), [in1] "r" (in1),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		:
+		: "memory", "cc", "p0", "z0", "z1"
 	);
 }
 
@@ -673,10 +673,74 @@ void svload_04(void)
 		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		"ld1d		z2.d, p0/z, [%[in2], %[i], lsl #3]\n\t"
 		"b.ne		.Lloop%=\n\t"
-		: [cnt] "+&r" (cnt), [i] "+&r" (i)/* no output */
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
 		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		:
+		: "memory", "cc", "p0", "z0", "z1", "z2"
+	);
+}
+
+void svldst_01(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "p0", "z0", "z1", "z2"
+	);
+}
+
+void svdup_01(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"mov		z0.d, x0\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [lcnt] "i" (MEASURE_LOOPS)
+		: "z0"
+	);
+}
+
+void svscram_03(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"mov		z3.d, %[prm]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		/*
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		*/
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
 	);
 }
 
@@ -1035,6 +1099,7 @@ void svest_08(void* XXH_RESTRICT out,
 #if defined(DEBUG_NOSTORE)
 #pragma GCC push_options
 #pragma GCC optimize ("O0")
+inline
 void svest_09(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1)
 {
@@ -1299,6 +1364,58 @@ void vscrum_02(void* XXH_RESTRICT out,
 #pragma GCC pop_options
 #endif	/* __ARM_NEON__ */
 
+void base_ld_01(void)
+{
+	uint64_t cnt, i, data;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldr		%[data], [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i), [data] "=&r" (data)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "p0", "z0", "z1", "z2"
+	);
+}
+
+void base_st_01(void)
+{
+	uint64_t cnt, i, data;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"str		%[data], [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [data] "r" (data),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "p0", "z0", "z1", "z2"
+	);
+}
+
+void base_ldst_01(void)
+{
+	uint64_t cnt, i, data;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldr		%[data], [%[out]]\n\t"
+		"str		%[data], [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i), [data] "+&r" (data)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "p0", "z0", "z1", "z2"
+	);
+}
 
 static xxh_u64 XXH_read64(const void* memPtr)
 {
@@ -1752,12 +1869,12 @@ void measure_fn(char *name, f_void fn)
 	uint64_t us, ue;
 #endif
 
-	printf("Test %s", name);
+	printf("Test %s ", name);
 #if defined(__AARCH64_CMODEL_SMALL__)
 	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t1));
 	fn();
 	asm volatile("isb; mrs %0, cntvct_el0" : "=r" (t2));
-	printf("\tcosts %ld counts. Average loop costs %.5f counts.\n",
+	printf("costs %ld counts. Average loop costs %.5f counts.\n",
 		t2 - t1,
 		(double)(t2 - t1) / MEASURE_LOOPS);
 #else
@@ -1766,7 +1883,7 @@ void measure_fn(char *name, f_void fn)
 	clock_gettime(CLOCK_REALTIME, &end);
 	ue = end.tv_nsec + end.tv_sec * 1000000000;
 	us = start.tv_nsec + start.tv_sec * 1000000000;
-	printf("\tcosts %ld sec and %ld nsec.\n",
+	printf("costs %ld sec and %ld nsec.\n",
 		(ue - us) / 1000000000,
 		(ue - us) % 1000000000);
 #endif
@@ -1789,6 +1906,9 @@ int main(int argc, char **argv)
 	for (int i = 0; i < 64; i++) {
 		array[i] = 0x30 + i;
 	}
+	measure_fn("base_ld_01", base_ld_01);
+	measure_fn("base_st_01", base_st_01);
+	measure_fn("base_ldst_01", base_ldst_01);
 #if defined(__ARM_FEATURE_SVE)
 	measure_fn("svstore_01", svstore_01);
 	measure_fn("svstore_02", svstore_02);
@@ -1797,9 +1917,11 @@ int main(int argc, char **argv)
 	measure_fn("svload_02", svload_02);
 	measure_fn("svload_03", svload_03);
 	measure_fn("svload_04", svload_04);
+	measure_fn("svldst_01", svldst_01);
+	measure_fn("svdup_01", svdup_01);
+	measure_fn("svscram_03", svscram_03);
 	//measure_fn("svmul_02", svmul_02);
 	//measure_fn("svempty_01", svempty_01);
-	return 0;
 	svacc_init();
 	if (flag_perf) {
 		/*
