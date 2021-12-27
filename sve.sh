@@ -95,13 +95,14 @@ build_bench() {
 }
 
 run_bench() {
-	./benchHash --n=1 --mins=2 --maxs=2
+	./benchHash --mins=2 --maxs=2 --minl=9 --maxl=12
 }
 
 build_debug() {
 	cd $WORKSPACE/debug
-	rm -f debug_sve
-	$CC $CFLAGS $TEST_FLAGS -o debug_sve debug_sve.c
+	rm -f debug_sve *.o
+	as -o cal_sve.o cal_sve.S
+	$CC $CFLAGS $TEST_FLAGS -o debug_sve debug_sve.c cal_sve.o
 }
 
 run_debug() {

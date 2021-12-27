@@ -715,7 +715,101 @@ void svdup_01(void)
 	);
 }
 
-void svscram_03(void)
+void sve_scram_01(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
+	);
+}
+
+void sve_scram_02(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
+	);
+}
+
+void sve_scram_03(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
+	);
+}
+
+void sve_scram_04(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
+	);
+}
+
+void sve_scram_05(void)
 {
 	uint64_t cnt, i;
 	uint64_t prime = XXH_PRIME32_1;
@@ -728,15 +822,77 @@ void svscram_03(void)
 		"subs		%[cnt], %[cnt], #1\n\t"
 		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
 		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
-		/*
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
+	);
+}
+
+void sve_scram_06(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"mov		z3.d, %[prm]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
 		"eor		z1.d, z0.d, z1.d\n\t"
 		"lsr		z2.d, z0.d, #47\n\t"
 		"eor		z0.d, z1.d, z2.d\n\t"
 		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
-		*/
 		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
 		"b.ne		.Lloop%=\n\t"
 		: [cnt] "+&r" (cnt), [i] "+&r" (i)
+		: [out] "r" (out1), [in1] "r" (in1),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "p0", "z0", "z1", "z2", "z3"
+	);
+}
+
+void sve_scram_07(void)
+{
+	uint64_t cnt, i, j;
+	uint64_t prime = XXH_PRIME32_1;
+	/* [z0-z2] iteration #1
+	 * [z4-z6] iteration #2
+	 */
+	asm volatile (
+		"mov		%[i], xzr\n\t"
+		"add		%[j], %[i], #4\n\t"
+		"mov		%[cnt], %[lcnt]\n\t"
+		"mov		z3.d, %[prm]\n\t"
+		"ptrue		p0.d\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ld1d		z0.d, p0/z, [%[out], %[i], lsl #3]\n\t"
+		"ld1d		z1.d, p0/z, [%[in1], %[i], lsl #3]\n\t"
+		"ld1d		z4.d, p0/z, [%[out], %[j], lsl #3]\n\t"
+		"ld1d		z5.d, p0/z, [%[in1], %[j], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, p0/m, z0.d, z3.d\n\t"
+		"eor		z5.d, z4.d, z5.d\n\t"
+		"lsr		z6.d, z4.d, #47\n\t"
+		"eor		z4.d, z5.d, z6.d\n\t"
+		"mul		z4.d, p0/m, z4.d, z3.d\n\t"
+		"st1d		z0.d, p0, [%[out], %[i], lsl #3]\n\t"
+		"st1d		z4.d, p0, [%[out], %[j], lsl #3]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt), [i] "+&r" (i), [j] "+&r" (j)
 		: [out] "r" (out1), [in1] "r" (in1),
 		  [lcnt] "i" (MEASURE_LOOPS),
 		  [prm] "r" (prime)
@@ -1156,6 +1312,34 @@ void svest_09(void* XXH_RESTRICT out,
 }
 #endif	/* DEBUG_NOSTORE */
 
+void svest_10(void* XXH_RESTRICT out,
+	const void* XXH_RESTRICT in1)
+{
+	svbool_t pg;
+	uint64_t i;
+	uint64_t prime = XXH_PRIME32_1;
+
+	__asm__ __volatile__ (
+		"mov		%[i], xzr\n\t"
+		"ptrue		%[pg].d\n\t"
+		/* load prime32_1 */
+		"mov		z3.d, %[prm]\n\t"
+		/* load in1 */
+		"ld1d		z1.d, %[pg]/z, [%[in1], %[i], lsl #3]\n\t"
+		/* load out */
+		"ld1d		z0.d, %[pg]/z, [%[out], %[i], lsl #3]\n\t"
+		"eor		z1.d, z0.d, z1.d\n\t"
+		"lsr		z2.d, z0.d, #47\n\t"
+		"eor		z0.d, z1.d, z2.d\n\t"
+		"mul		z0.d, %[pg]/m, z0.d, z3.d\n\t"
+		/* save out */
+		"st1d		z0.d, %[pg], [%[out], %[i], lsl #3]\n\t"
+		: [pg] "=&Upl" (pg)
+		: [out] "r" (out), [in1] "r" (in1), [i] "r" (i), [prm] "r" (prime)
+		: "cc", "memory", "z0", "z1"
+	);
+}
+
 /*
  * Reorder 64-bit data by index & tbl.
  * Proposed by Guodong.
@@ -1465,7 +1649,168 @@ void base_scram_01(void)
 		: [cnt] "+&r" (cnt)
 		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
 		  [lcnt] "i" (MEASURE_LOOPS)
-		: "memory", "cc", "x0", "x1"
+		: "memory", "cc", "x0", "x1", "x2", "x3"
+	);
+}
+
+void base_scram_02(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"eor		x3, x1, x3\n\t"
+		"eor		x2, x0, x2\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1", "x2", "x3"
+	);
+}
+
+void base_scram_03(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"eor		x3, x1, x3\n\t"
+		"lsr		x5, x1, #47\n\t"
+		"eor		x2, x0, x2\n\t"
+		"lsr		x4, x0, #47\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1", "x2", "x3", "x4", "x5"
+	);
+}
+
+void base_scram_04(void)
+{
+	uint64_t cnt, i;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"eor		x3, x1, x3\n\t"
+		"lsr		x5, x1, #47\n\t"
+		"eor		x1, x3, x5\n\t"
+		"eor		x2, x0, x2\n\t"
+		"lsr		x4, x0, #47\n\t"
+		"eor		x0, x2, x4\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1", "x2", "x3", "x4", "x5"
+	);
+}
+
+void base_scram_05(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"eor		x3, x1, x3\n\t"
+		"lsr		x5, x1, #47\n\t"
+		"eor		x1, x3, x5\n\t"
+		"eor		x2, x0, x2\n\t"
+		"lsr		x4, x0, #47\n\t"
+		"eor		x0, x2, x4\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "x0", "x1", "x2", "x3", "x4", "x5"
+	);
+}
+
+void base_scram_06(void)
+{
+	uint64_t cnt, i;
+	uint64_t prime = XXH_PRIME32_1;
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"eor		x3, x1, x3\n\t"
+		"lsr		x5, x1, #47\n\t"
+		"eor		x1, x3, x5\n\t"
+		"mul		x1, x1, %[prm]\n\t"
+		"eor		x2, x0, x2\n\t"
+		"lsr		x4, x0, #47\n\t"
+		"eor		x0, x2, x4\n\t"
+		"mul		x0, x0, %[prm]\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS),
+		  [prm] "r" (prime)
+		: "memory", "cc", "x0", "x1", "x2", "x3", "x4", "x5"
+	);
+}
+
+void base_scram_07(void)
+{
+	uint64_t cnt, i;
+	/* [x0-x5] iteration #1
+	 * [x6-x11] iteration #2
+	 */
+	asm volatile (
+		"mov		%[cnt], %[lcnt]\n\t"
+		"movk		w13, #0x9e37, lsl #16\n\t"
+		".Lloop%=:\n\t"
+		"subs		%[cnt], %[cnt], #1\n\t"
+		"ldp		x0, x1, [%[out]]\n\t"
+		"ldp		x2, x3, [%[in1]]\n\t"
+		"ldp		x6, x7, [%[out], #16]\n\t"
+		"ldp		x8, x9, [%[in1], #16]\n\t"
+		"eor		x3, x1, x3\n\t"
+		"lsr		x5, x1, #47\n\t"
+		"eor		x1, x3, x5\n\t"
+		"eor		x2, x0, x2\n\t"
+		"lsr		x4, x0, #47\n\t"
+		"eor		x0, x2, x4\n\t"
+		"eor		x9, x7, x9\n\t"
+		"lsr		x11, x7, #47\n\t"
+		"eor		x7, x9, x11\n\t"
+		"eor		x8, x6, x8\n\t"
+		"lsr		x10, x6, #47\n\t"
+		"eor		x6, x8, x10\n\t"
+		"mul		x1, x1, x13\n\t"
+		"mul		x0, x0, x13\n\t"
+		"mul		x7, x7, x13\n\t"
+		"mul		x6, x6, x13\n\t"
+		"stp		x0, x1, [%[out]]\n\t"
+		"stp		x6, x7, [%[out], #16]\n\t"
+		"b.ne		.Lloop%=\n\t"
+		: [cnt] "+&r" (cnt)
+		: [out] "r" (out1), [in1] "r" (in1), [in2] "r" (in2),
+		  [lcnt] "i" (MEASURE_LOOPS)
+		: "memory", "cc", "x0", "x1", "x2", "x3", "x4", "x5"
 	);
 }
 
@@ -1941,6 +2286,8 @@ void measure_fn(char *name, f_void fn)
 #endif
 }
 
+extern int asvload_03(int op);
+
 int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
@@ -1963,8 +2310,21 @@ int main(int argc, char **argv)
 	measure_fn("base_st_01", base_st_01);
 	measure_fn("base_ldst_01", base_ldst_01);
 	measure_fn("base_ldst_02", base_ldst_02);
+	op = 5;
+	op = asvload_03(op);
+	printf("op:%d\n", op);
+	return 0;
+	/*
 	measure_fn("base_scram_01", base_scram_01);
+	measure_fn("base_scram_02", base_scram_02);
+	measure_fn("base_scram_03", base_scram_03);
+	measure_fn("base_scram_04", base_scram_04);
+	measure_fn("base_scram_05", base_scram_05);
+	measure_fn("base_scram_06", base_scram_06);
+	//measure_fn("base_scram_07", base_scram_07);
+	*/
 #if defined(__ARM_FEATURE_SVE)
+	/*
 	measure_fn("svstore_01", svstore_01);
 	measure_fn("svstore_02", svstore_02);
 	measure_fn("svstore_03", svstore_03);
@@ -1973,8 +2333,14 @@ int main(int argc, char **argv)
 	measure_fn("svload_03", svload_03);
 	measure_fn("svload_04", svload_04);
 	measure_fn("svldst_01", svldst_01);
-	measure_fn("svdup_01", svdup_01);
-	measure_fn("svscram_03", svscram_03);
+	measure_fn("sve_scram_01", sve_scram_01);
+	measure_fn("sve_scram_02", sve_scram_02);
+	measure_fn("sve_scram_03", sve_scram_03);
+	measure_fn("sve_scram_04", sve_scram_04);
+	measure_fn("sve_scram_05", sve_scram_05);
+	measure_fn("sve_scram_06", sve_scram_06);
+	measure_fn("sve_scram_07", sve_scram_07);
+	*/
 	//measure_fn("svmul_02", svmul_02);
 	//measure_fn("svempty_01", svempty_01);
 	svacc_init();
@@ -1999,6 +2365,7 @@ int main(int argc, char **argv)
 		*/
 		perf_scrum("empty_scrum", empty_scrum);
 		perf_scrum("svest_09", svest_09);
+		perf_scrum("svest_10", svest_10);
 	} else {
 #if !defined(DEBUG_NOSTORE)
 		test_accum("svmad_05", svmad_05, 1024);
