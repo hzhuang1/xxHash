@@ -96,6 +96,10 @@ ifeq ($(DISPATCH),1)
 xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
 xxhsum: xxh_x86dispatch.o
 endif
+ifeq ($(AARCH64_DISPATCH),1)
+xxhsum: CPPFLAGS += -DXXHSUM_AARCH64_DISPATCH=1
+xxhsum: xxh_aarch64dispatch.o
+endif
 xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
 
@@ -112,6 +116,9 @@ xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
     xxhash.h xxh_x86dispatch.h
 xxh_x86dispatch.o: xxh_x86dispatch.c xxh_x86dispatch.h xxhash.h
+
+xxh_aarch64dispatch.o: xxh_aarch64dispatch.S xxhash.h
+	$(AS) -o xxh_aarch64dispatch.o xxh_aarch64dispatch.S
 
 .PHONY: xxhsum_and_links
 xxhsum_and_links: xxhsum xxh32sum xxh64sum xxh128sum

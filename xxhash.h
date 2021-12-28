@@ -4910,12 +4910,20 @@ XXH3_update(XXH3_state_t* state,
 }
 
 /*! @ingroup xxh3_family */
+#if defined(XXH_AARCH64_DISPATCH)
+XXH_PUBLIC_API XXH_errorcode
+XXH3_64bits_update(XXH3_state_t* state, const void* input, size_t len)
+{
+    return XXH3_aarch64_update(state, input, len);
+}
+#else
 XXH_PUBLIC_API XXH_errorcode
 XXH3_64bits_update(XXH3_state_t* state, const void* input, size_t len)
 {
     return XXH3_update(state, (const xxh_u8*)input, len,
                        XXH3_accumulate_512, XXH3_scrambleAcc);
 }
+#endif
 
 
 XXH_FORCE_INLINE void
