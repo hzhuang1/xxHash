@@ -84,7 +84,7 @@ check_option() {
 build_xxhash() {
 	cd $WORKSPACE
 	make clean
-	make test
+	make AARCH64_DISPATCH=1 test
 }
 
 build_bench() {
@@ -100,9 +100,10 @@ run_bench() {
 
 build_debug() {
 	cd $WORKSPACE/debug
-	rm -f debug_sve *.o
+	rm -f debug_sve *.o ../*.o
 	as -o cal_sve.o cal_sve.S
-	$CC $CFLAGS $TEST_FLAGS -o debug_sve debug_sve.c cal_sve.o
+	$CC $CFLAGS $TEST_FLAGS -o xxh_aarch64dispatch.o -c ../xxh_aarch64dispatch.S
+	$CC $CFLAGS $TEST_FLAGS -o debug_sve debug_sve.c cal_sve.o xxh_aarch64dispatch.o
 }
 
 run_debug() {

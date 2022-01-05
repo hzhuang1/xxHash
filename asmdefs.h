@@ -5,8 +5,8 @@
  * Copyright (c) 2021-2022, Linaro Limited.
  */
 
-#ifndef _ASMDEFS_H
-#define _ASMDEFS_H
+#ifndef __ASMDEFS_H
+#define __ASMDEFS_H
 
 #if defined(__aarch64__)
 
@@ -82,4 +82,6 @@ GNU_PROPERTY (FEATURE_1_AND, FEATURE_1_BTI|FEATURE_1_PAC)
 #define SIZE_ARG(n)
 #endif	/* __ILP32__ */
 
-#endif	/* __aarch64_ */
+#endif	/* __aarch64__ */
+
+#endif	/* __ASMDEFS_H */

@@ -44,6 +44,9 @@ typedef void (*f_scrum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT);
 typedef void (*f_void)(void);
 
+extern int asvload_03(int op);
+extern int XXH3_aarch64_sve_init_accum(void);
+
 static unsigned char in1[64] __attribute__((aligned(256)));
 static unsigned char in2[64] __attribute__((aligned(256)));
 static unsigned char out1[64] __attribute__((aligned(256)));
@@ -461,22 +464,21 @@ void svacc_init(void)
 	svst1(p1, (uint64_t *)&u64_idx[0], idx);
 }
 
-#if 0
-void svacc_init2(void)
+/* call assembly code to init */
+int svacc_init2(void)
 {
-	svbool_t p0, p1;
+	void *out = u64_idx;
+	XXH3_aarch64_sve_init_accum();
 	asm volatile (
-		"ptrue		p7.d\n\t"
-		"whilelt	%[p1].d, xzr, xzr\n\t"
-		"index		z0.d, #1, #1\n\t"
-		"mov		z1.d, #2\n\t"
-		"trn1		%[p1].d, %[p1].d, p7.d\n\t"
-		"sub		z7.d, %[p1]/m, z0.d, z1.d\n\t"
-		: /* no output */
-		: [p1] "Upl" (p1)
-		: "z0", "z1", "z7", "p7"
+		"st1d	z7.d, p7, [%[out]]\n\t"
+		:
+		: [out] "r" (out)
+		: "z7", "p0"
 	);
+	return 0;
 }
+
+#if 0
 
 void svmul_01(void* XXH_RESTRICT out,
 	const void* XXH_RESTRICT in1,
@@ -2286,8 +2288,6 @@ void measure_fn(char *name, f_void fn)
 #endif
 }
 
-extern int asvload_03(int op);
-
 int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
@@ -2305,6 +2305,12 @@ int main(int argc, char **argv)
 	for (int i = 0; i < 64; i++) {
 		array[i] = 0x30 + i;
 	}
+	memset(u64_idx, 0, 32);
+	svacc_init2();
+	dump_bits("IDX", u64_idx, 512);
+	memset(u64_idx, 0, 32);
+	svacc_init();
+	dump_bits("IDX", u64_idx, 512);
 	measure_fn("base_ld_01", base_ld_01);
 	measure_fn("base_ld_02", base_ld_02);
 	measure_fn("base_st_01", base_st_01);
