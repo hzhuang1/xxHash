@@ -50,9 +50,13 @@ typedef void (*f_void)(void);
 
 extern int asvload_03(int op);
 extern int XXH3_aarch64_sve_init_accum(void);
-extern int XXH3_aarch64_sve_accum512(void* XXH_RESTRICT,
+extern int XXH3_aarch64_sve_acc512(void* XXH_RESTRICT,
 				const void* XXH_RESTRICT,
 				const void* XXH_RESTRICT);
+extern int XXH3_aarch64_sve_accumulate(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT,
+				const void* XXH_RESTRICT,
+				size_t);
 
 static unsigned char in1[64] __attribute__((aligned(256)));
 static unsigned char in2[64] __attribute__((aligned(256)));
@@ -485,23 +489,6 @@ int svacc_init2(void)
 		: "z7", "p0"
 	);
 	dump_bits("IDX", u64_idx, 512);
-	return 0;
-}
-
-int svacc_01(void* XXH_RESTRICT acc,
-	const void* XXH_RESTRICT input,
-	const void* XXH_RESTRICT secret)
-{
-	/* load acc into z0 */
-	asm volatile (
-		"ld1d	z0.d, p7/z, [%[out]]\n\t"
-		:
-		: [out] "r" (acc)
-		: "z0", "p7"
-		);
-	XXH3_aarch64_sve_init_accum();
-	/* acc occupies x0. Other two parameters are using x1 and x2. */
-	XXH3_aarch64_sve_accum512(acc, input, secret);
 	return 0;
 }
 
@@ -2147,16 +2134,86 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
     }
 }
 
-int test_svacc(void)
+int svacc_01(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret)
+{
+	/* load acc into z0 */
+	asm volatile (
+		"ld1d	z0.d, p7/z, [%[out]]\n\t"
+		:
+		: [out] "r" (acc)
+		: "z0", "p7"
+		);
+	XXH3_aarch64_sve_init_accum();
+	/* acc occupies x0. Other two parameters are using x1 and x2. */
+	XXH3_aarch64_sve_acc512(acc, input, secret);
+	return 0;
+}
+
+int svacc_02(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret,
+	size_t nbStripes)
+{
+	//int reg;
+	/* load acc into z0 */
+	asm volatile (
+		"ld1d	z0.d, p7/z, [%[out]]\n\t"
+		:
+		: [out] "r" (acc)
+		: "z0", "p7"
+		);
+	XXH3_aarch64_sve_init_accum();
+	/* acc occupies x0. Other parameters are using x1-x3. */
+	XXH3_aarch64_sve_accumulate(acc, input, secret, nbStripes);
+/*
+	asm volatile (
+		"mov	%[reg], x10\n\t"
+		: [reg] "=r" (reg)
+		:
+		:
+		);
+	printf("reg=0x%x\n", reg);
+*/
+	return 0;
+}
+
+void test_svacc(int bits)
 {
 	int i;
 	unsigned char vout[64];
 	void *out = vout;
+	size_t nbStripes;
+	void *out1, *in1, *in2;
+	int bytes;
 
-	init_buf(in1, 512);
-	set_buf(in2, 0x55, 512);
+	if (bits < 512) {
+		printf("The minimum bits should be 512.\n");
+		return;
+	}
+	nbStripes = bits / 512;
+	bytes = (bits + 7) >> 3;
+	in1 = malloc(bytes);
+	if (!in1) {
+		printf("Not enough memory for in1 (%d-bit)!\n", bits);
+		goto out_in1;
+	}
+	in2 = malloc(bytes);
+	if (!in2) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_in2;
+	}
+	out1 = malloc(bytes);
+	if (!out1) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_out1;
+	}
+	init_buf(in1, bits);
+	set_buf(in2, 0x55, bits);
 	clear_buf(out1, 512);
-	svacc_01(out1, in1, in2);
+	//svacc_01(out1, in1, in2);
+	svacc_02(out1, in1, in2, nbStripes);
 #if 1
 	/* dump z0 */
 	asm volatile (
@@ -2191,6 +2248,16 @@ int test_svacc(void)
 	);
 	dump_bits("SECRET", out, 512);
 #endif
+	free(in1);
+	free(in2);
+	free(out1);
+	return;
+out_out1:
+	free(in2);
+out_in2:
+	free(in1);
+out_in1:
+	return;
 }
 
 void test_xxh3_accum(int bits)
@@ -2429,9 +2496,9 @@ int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
 
-	test_svacc();
+	test_svacc(2048);
 	//test_accum("svmad_05", svmad_05, 1024);
-	test_xxh3_accum(1024);
+	test_xxh3_accum(2048);
 	return 0;
 	while ((op = getopt(argc, argv, ":p")) != -1) {
 		switch (op) {

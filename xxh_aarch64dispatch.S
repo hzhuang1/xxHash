@@ -76,7 +76,7 @@ END (XXH3_aarch64_sve_init_accum)
  * Output Registers: z0 (xacc)
  * Modified Registers: z0-z6, x11-x12
  */
-ENTRY (XXH3_aarch64_sve_accum512)
+ENTRY (XXH3_aarch64_sve_acc512)
 	mov	w12, #0xffffffff
 	mov	x11, xzr
 	// set -1 in z4
@@ -102,6 +102,26 @@ ENTRY (XXH3_aarch64_sve_accum512)
 	// always store acc in z0
 	mov	z0.d, z1.d
 	ret
-END (XXH3_aarch64_sve_accum512)
+END (XXH3_aarch64_sve_acc512)
 
+/*
+ * Input Registers: x0 (acc), x1 (input), x2 (secret), x3 (nbStripes),
+ *		    z0 (xacc), z7 (index), p7
+ * Output Registers: z0 (xacc)
+ * Modified Registers: z0-z6, x1-x2, x10-x12
+ */
+ENTRY (XXH3_aarch64_sve_accumulate)
+	stp	x29, x30, [sp, #-16]!
+	mov	x29, sp
+	mov	x10, xzr
+0:
+	bl	XXH3_aarch64_sve_acc512
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	0b
+	ldp	x29, x30, [sp], #16
+	ret
+END (XXH3_aarch64_sve_accumulate)
 #XXH3_aarch64_consumeStripes(xxh_u64* XXH_RESTRICT acc, size_t* XXH_RESTRICT nbStripeSoFarPtr, size_t nbStripesPerBlock, const xxh_u8* XXH_RESTRICT input, size_t nbScripes, const xxh_u8* XXH_RESTRICT secret, size_t secretLimit)
