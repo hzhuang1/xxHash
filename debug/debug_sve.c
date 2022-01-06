@@ -46,6 +46,9 @@ typedef void (*f_void)(void);
 
 extern int asvload_03(int op);
 extern int XXH3_aarch64_sve_init_accum(void);
+extern int XXH3_aarch64_sve_accum512(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT,
+				const void* XXH_RESTRICT);
 
 static unsigned char in1[64] __attribute__((aligned(256)));
 static unsigned char in2[64] __attribute__((aligned(256)));
@@ -468,16 +471,81 @@ void svacc_init(void)
 int svacc_init2(void)
 {
 	void *out = u64_idx;
+	memset(u64_idx, 0, 32);
 	XXH3_aarch64_sve_init_accum();
+	/* save z7 into u64_idx */
 	asm volatile (
 		"st1d	z7.d, p7, [%[out]]\n\t"
 		:
 		: [out] "r" (out)
 		: "z7", "p0"
 	);
+	dump_bits("IDX", u64_idx, 512);
 	return 0;
 }
 
+int svacc_01(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret)
+{
+	/* load acc into z0 */
+	asm volatile (
+		"ld1d	z0.d, p7/z, [%[out]]\n\t"
+		:
+		: [out] "r" (acc)
+		: "z0", "p7"
+		);
+	XXH3_aarch64_sve_init_accum();
+	/* acc occupies x0. Other two parameters are using x1 and x2. */
+	XXH3_aarch64_sve_accum512(acc, input, secret);
+	return 0;
+}
+
+int test_svacc(void)
+{
+	int i;
+	unsigned char vout[64];
+	void *out = vout;
+
+	init_buf(in1, 512);
+	set_buf(in2, 0x55, 512);
+	clear_buf(out1, 512);
+	svacc_01(out1, in1, in2);
+#if 1
+	/* dump z0 */
+	asm volatile (
+		"st1d	z0.d, p7, [%[out]]\n\t"
+		"dsb	sy\n\t"
+		:
+		: [out] "r" (out)
+		: "z0", "p7", "memory"
+	);
+	dump_bits("ACC", out, 512);
+	memset(out, 0, 64);
+#endif
+#if 0
+	/* save z1 */
+	asm volatile (
+		"st1d	z1.d, p7, [%[out]]\n\t"
+		"dsb	sy\n\t"
+		:
+		: [out] "r" (out)
+		: "z1", "p7", "memory"
+	);
+	dump_bits("INPUT", out, 512);
+#endif
+#if 0
+	/* save z2 into in2 */
+	asm volatile (
+		"st1d	z2.d, p7, [%[out]]\n\t"
+		"dsb	sy\n\t"
+		:
+		: [out] "r" (out)
+		: "z2", "p7", "memory"
+	);
+	dump_bits("SECRET", out, 512);
+#endif
+}
 #if 0
 
 void svmul_01(void* XXH_RESTRICT out,
@@ -2292,6 +2360,9 @@ int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
 
+	test_svacc();
+	test_accum("svmad_05", svmad_05, 1024);
+	return 0;
 	while ((op = getopt(argc, argv, ":p")) != -1) {
 		switch (op) {
 		case 'p':
@@ -2305,9 +2376,7 @@ int main(int argc, char **argv)
 	for (int i = 0; i < 64; i++) {
 		array[i] = 0x30 + i;
 	}
-	memset(u64_idx, 0, 32);
 	svacc_init2();
-	dump_bits("IDX", u64_idx, 512);
 	memset(u64_idx, 0, 32);
 	svacc_init();
 	dump_bits("IDX", u64_idx, 512);

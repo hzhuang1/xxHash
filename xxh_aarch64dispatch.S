@@ -72,11 +72,36 @@ ENTRY (XXH3_aarch64_sve_init_accum)
 END (XXH3_aarch64_sve_init_accum)
 
 /*
- * Input Registers: x0 (xacc), x3 (input), x5 (secret)
- * Output Registers:
- * Modified Registers:
+ * Input Registers: x0 (acc), x1 (input), x2 (secret), z0 (xacc), z7 (index), p7
+ * Output Registers: z0 (xacc)
+ * Modified Registers: z0-z6, x11-x12
  */
 ENTRY (XXH3_aarch64_sve_accum512)
+	mov	w12, #0xffffffff
+	mov	x11, xzr
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	// make z0 loaded outside
+	//ld1d	{z0.d}, p7/z, [x0, x11, lsl #3]
+	ld1d	{z1.d}, p7/z, [x1, x11, lsl #3]
+	ld1d	{z2.d}, p7/z, [x2, x11, lsl #3]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	// always store acc in z0
+	mov	z0.d, z1.d
+	ret
 END (XXH3_aarch64_sve_accum512)
 
 #XXH3_aarch64_consumeStripes(xxh_u64* XXH_RESTRICT acc, size_t* XXH_RESTRICT nbStripeSoFarPtr, size_t nbStripesPerBlock, const xxh_u8* XXH_RESTRICT input, size_t nbScripes, const xxh_u8* XXH_RESTRICT secret, size_t secretLimit)
