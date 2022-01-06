@@ -37,6 +37,10 @@
 
 #define MEASURE_LOOPS  0x10000000
 
+typedef void (*XXH3_f_accumulate_512)(void* XXH_RESTRICT, const void*, const void*);
+typedef void (*XXH3_f_scrambleAcc)(void* XXH_RESTRICT, const void*);
+typedef void (*XXH3_f_initCustomSecret)(void* XXH_RESTRICT, xxh_u64);
+
 typedef void (*f_accum)(void* XXH_RESTRICT,
 		const void* XXH_RESTRICT,
 		const void* XXH_RESTRICT);
@@ -501,51 +505,6 @@ int svacc_01(void* XXH_RESTRICT acc,
 	return 0;
 }
 
-int test_svacc(void)
-{
-	int i;
-	unsigned char vout[64];
-	void *out = vout;
-
-	init_buf(in1, 512);
-	set_buf(in2, 0x55, 512);
-	clear_buf(out1, 512);
-	svacc_01(out1, in1, in2);
-#if 1
-	/* dump z0 */
-	asm volatile (
-		"st1d	z0.d, p7, [%[out]]\n\t"
-		"dsb	sy\n\t"
-		:
-		: [out] "r" (out)
-		: "z0", "p7", "memory"
-	);
-	dump_bits("ACC", out, 512);
-	memset(out, 0, 64);
-#endif
-#if 0
-	/* save z1 */
-	asm volatile (
-		"st1d	z1.d, p7, [%[out]]\n\t"
-		"dsb	sy\n\t"
-		:
-		: [out] "r" (out)
-		: "z1", "p7", "memory"
-	);
-	dump_bits("INPUT", out, 512);
-#endif
-#if 0
-	/* save z2 into in2 */
-	asm volatile (
-		"st1d	z2.d, p7, [%[out]]\n\t"
-		"dsb	sy\n\t"
-		:
-		: [out] "r" (out)
-		: "z2", "p7", "memory"
-	);
-	dump_bits("SECRET", out, 512);
-#endif
-}
 #if 0
 
 void svmul_01(void* XXH_RESTRICT out,
@@ -2171,6 +2130,116 @@ XXH3_scrambleAcc_neon(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 #endif	/* DEBUG_NOSTORE */
 #endif	/* __ARM_NEON__ */
 
+XXH_FORCE_INLINE void
+XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
+                const xxh_u8* XXH_RESTRICT input,
+                const xxh_u8* XXH_RESTRICT secret,
+                      size_t nbStripes,
+                      XXH3_f_accumulate_512 f_acc512)
+{
+    size_t n;
+    for (n = 0; n < nbStripes; n++ ) {
+        const xxh_u8* const in = input + n*XXH_STRIPE_LEN;
+        //XXH_PREFETCH(in + XXH_PREFETCH_DIST);
+        f_acc512(acc,
+                 in,
+                 secret + n*XXH_SECRET_CONSUME_RATE);
+    }
+}
+
+int test_svacc(void)
+{
+	int i;
+	unsigned char vout[64];
+	void *out = vout;
+
+	init_buf(in1, 512);
+	set_buf(in2, 0x55, 512);
+	clear_buf(out1, 512);
+	svacc_01(out1, in1, in2);
+#if 1
+	/* dump z0 */
+	asm volatile (
+		"st1d	z0.d, p7, [%[out]]\n\t"
+		"dsb	sy\n\t"
+		:
+		: [out] "r" (out)
+		: "z0", "p7", "memory"
+	);
+	dump_bits("ACC", out, 512);
+	memset(out, 0, 64);
+#endif
+#if 0
+	/* save z1 */
+	asm volatile (
+		"st1d	z1.d, p7, [%[out]]\n\t"
+		"dsb	sy\n\t"
+		:
+		: [out] "r" (out)
+		: "z1", "p7", "memory"
+	);
+	dump_bits("INPUT", out, 512);
+#endif
+#if 0
+	/* save z2 into in2 */
+	asm volatile (
+		"st1d	z2.d, p7, [%[out]]\n\t"
+		"dsb	sy\n\t"
+		:
+		: [out] "r" (out)
+		: "z2", "p7", "memory"
+	);
+	dump_bits("SECRET", out, 512);
+#endif
+}
+
+void test_xxh3_accum(int bits)
+{
+	void *out1, *in1, *in2;
+	int bytes;
+	size_t nbStripes;
+
+	if (bits < 512) {
+		printf("The minimum bits should be 512.\n");
+		return;
+	}
+	nbStripes = bits / 512;
+	bytes = (bits + 7) >> 3;
+	in1 = malloc(bytes);
+	if (!in1) {
+		printf("Not enough memory for in1 (%d-bit)!\n", bits);
+		goto out_in1;
+	}
+	in2 = malloc(bytes);
+	if (!in2) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_in2;
+	}
+	out1 = malloc(bytes);
+	if (!out1) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_out1;
+	}
+
+	printf("Test in %s\n", __func__);
+	init_buf(in1, bits);
+	set_buf(in2, 0x55, bits);
+	clear_buf(out1, 512);
+	XXH3_accumulate((xxh_u64*)out1, in1, in2, nbStripes,
+			XXH3_accumulate_512_scalar);
+	dump_bits("ACC", out1, 512);
+	free(in1);
+	free(in2);
+	free(out1);
+	return;
+out_out1:
+	free(in2);
+out_in2:
+	free(in1);
+out_in1:
+	return;
+}
+
 void empty_accum( void* XXH_RESTRICT acc,
 	const void* XXH_RESTRICT input,
 	const void* XXH_RESTRICT secret)
@@ -2361,7 +2430,8 @@ int main(int argc, char **argv)
 	int op, flag_perf = 0;
 
 	test_svacc();
-	test_accum("svmad_05", svmad_05, 1024);
+	//test_accum("svmad_05", svmad_05, 1024);
+	test_xxh3_accum(1024);
 	return 0;
 	while ((op = getopt(argc, argv, ":p")) != -1) {
 		switch (op) {
