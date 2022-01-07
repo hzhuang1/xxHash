@@ -50,13 +50,15 @@ typedef void (*f_void)(void);
 
 extern int asvload_03(int op);
 extern int XXH3_aarch64_sve_init_accum(void);
-extern int XXH3_aarch64_sve_acc512(void* XXH_RESTRICT,
+extern void XXH3_aarch64_sve_acc512(void* XXH_RESTRICT,
 				const void* XXH_RESTRICT,
 				const void* XXH_RESTRICT);
-extern int XXH3_aarch64_sve_accumulate(void* XXH_RESTRICT,
+extern void XXH3_aarch64_sve_accumulate(void* XXH_RESTRICT,
 				const void* XXH_RESTRICT,
 				const void* XXH_RESTRICT,
 				size_t);
+extern void XXH3_aarch64_sve_scramble(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT);
 
 static unsigned char in1[64] __attribute__((aligned(256)));
 static unsigned char in2[64] __attribute__((aligned(256)));
@@ -2161,7 +2163,7 @@ int svacc_02(void* XXH_RESTRICT acc,
 	asm volatile (
 		"ld1d	z0.d, p7/z, [%[out]]\n\t"
 		:
-		: [out] "r" (acc)
+		: [out] "r" (out1)
 		: "z0", "p7"
 		);
 	XXH3_aarch64_sve_init_accum();
@@ -2179,6 +2181,30 @@ int svacc_02(void* XXH_RESTRICT acc,
 	return 0;
 }
 
+int svscramble_01(void* XXH_RESTRICT acc,
+		const void* XXH_RESTRICT secret)
+{
+	//int reg;
+	/* load acc into z0 */
+	asm volatile (
+		"ptrue	p7.d\n\t"
+		"ld1d	z0.d, p7/z, [%[out]]\n\t"
+		:
+		: [out] "r" (out1)
+		: "z0", "p7"
+		);
+	XXH3_aarch64_sve_scramble(acc, secret);
+/*
+	asm volatile (
+		"mov	%[reg], x12\n\t"
+		: [reg] "=r" (reg)
+		:
+		:
+		);
+	printf("reg=0x%x\n", reg);
+*/
+	return 0;
+}
 void test_svacc(int bits)
 {
 	int i;
@@ -2209,11 +2235,12 @@ void test_svacc(int bits)
 		printf("Not enough memory for in2 (%d-bit)!\n", bits);
 		goto out_out1;
 	}
-	init_buf(in1, bits);
-	set_buf(in2, 0x55, bits);
+	set_buf(in1, 0x55, bits);
+	init_buf(in2, bits);
 	clear_buf(out1, 512);
 	//svacc_01(out1, in1, in2);
-	svacc_02(out1, in1, in2, nbStripes);
+	//svacc_02(out1, in1, in2, nbStripes);
+	svscramble_01(out1, in2);
 #if 1
 	/* dump z0 */
 	asm volatile (
@@ -2289,11 +2316,57 @@ void test_xxh3_accum(int bits)
 	}
 
 	printf("Test in %s\n", __func__);
-	init_buf(in1, bits);
-	set_buf(in2, 0x55, bits);
+	set_buf(in1, 0x55, bits);
+	init_buf(in2, bits);
 	clear_buf(out1, 512);
 	XXH3_accumulate((xxh_u64*)out1, in1, in2, nbStripes,
 			XXH3_accumulate_512_scalar);
+	dump_bits("ACC", out1, 512);
+	free(in1);
+	free(in2);
+	free(out1);
+	return;
+out_out1:
+	free(in2);
+out_in2:
+	free(in1);
+out_in1:
+	return;
+}
+
+void test_xxh3_scramble(int bits)
+{
+	void *out1, *in1, *in2;
+	int bytes;
+	size_t nbStripes;
+
+	if (bits < 512) {
+		printf("The minimum bits should be 512.\n");
+		return;
+	}
+	nbStripes = bits / 512;
+	bytes = (bits + 7) >> 3;
+	in1 = malloc(bytes);
+	if (!in1) {
+		printf("Not enough memory for in1 (%d-bit)!\n", bits);
+		goto out_in1;
+	}
+	in2 = malloc(bytes);
+	if (!in2) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_in2;
+	}
+	out1 = malloc(bytes);
+	if (!out1) {
+		printf("Not enough memory for in2 (%d-bit)!\n", bits);
+		goto out_out1;
+	}
+
+	printf("Test in %s\n", __func__);
+	set_buf(in1, 0x55, bits);
+	init_buf(in2, bits);
+	clear_buf(out1, 512);
+	XXH3_scrambleAcc_scalar(out1, in2);
 	dump_bits("ACC", out1, 512);
 	free(in1);
 	free(in2);
@@ -2496,9 +2569,10 @@ int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
 
-	test_svacc(2048);
+	test_svacc(1024);
 	//test_accum("svmad_05", svmad_05, 1024);
-	test_xxh3_accum(2048);
+	//test_xxh3_accum(2048);
+	test_xxh3_scramble(1024);
 	return 0;
 	while ((op = getopt(argc, argv, ":p")) != -1) {
 		switch (op) {

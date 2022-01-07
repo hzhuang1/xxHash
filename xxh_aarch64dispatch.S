@@ -1,5 +1,10 @@
 #include "asmdefs.h"
 
+.data
+
+xxh3_prime_1:	.dword	0x9E3779B1U
+
+.text
 .globl XXH_OK
 .globl XXH3_128bits_update
 
@@ -11,27 +16,6 @@ ENTRY (XXH3_aarch64_update)
 	#bl XXH3_128bits_update
 	ret
 END (XXH3_aarch64_update)
-
-/*
-ENTRY (XXH3_aarch64_sve_accum512)
-	mov	w10, #0x8
-	whilelt	p0.d, wzr, w10
-	ptrue	p1.d
-	//b.pl	??
-	whilelo	p2.d, xzr, xzr
-	mov	w11, #0xffffffff
-	rdvl	x12, #1
-	mov	z3.d, #2
-END (XXH3_aarch64_sve_accum512)
-*/
-
-
-ENTRY (XXH3_aarch64_accumulate)
-	#loop
-	mov	x9, #0
-.LaccumLoop:
-	# call accumulate
-END (XXH3_aarch64_accumulate)
 
 # accept 8 parameters
 # x0: acc
@@ -124,4 +108,24 @@ ENTRY (XXH3_aarch64_sve_accumulate)
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve_accumulate)
+
+/*
+ * Input Registers: x0 (acc), x1 (secret), z0 (xacc), p7
+ * Output Registers: z0 (xacc)
+ * Modified Registers: z0-z3, x10-x12
+ */
+ENTRY (XXH3_aarch64_sve_scramble)
+	ldr	x10, address_of_xxh3_prime_1
+	mov	x11, xzr
+	ldr	x12, [x10]
+	ld1d	{z1.d}, p7/z, [x1, x11, lsl #3]
+	mov	z3.d, x12
+	eor	z1.d, z0.d, z1.d
+	lsr	z2.d, z0.d, #47
+	eor	z0.d, z1.d, z2.d
+	mul	z0.d, p7/m, z0.d, z3.d
+	ret
+END (XXH3_aarch64_sve_scramble)
+
+address_of_xxh3_prime_1:	.dword	xxh3_prime_1
 #XXH3_aarch64_consumeStripes(xxh_u64* XXH_RESTRICT acc, size_t* XXH_RESTRICT nbStripeSoFarPtr, size_t nbStripesPerBlock, const xxh_u8* XXH_RESTRICT input, size_t nbScripes, const xxh_u8* XXH_RESTRICT secret, size_t secretLimit)
