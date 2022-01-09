@@ -98,6 +98,8 @@ ENTRY (XXH3_aarch64_sve_accumulate)
 	stp	x29, x30, [sp, #-16]!
 	mov	x29, sp
 	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	1f
 0:
 	bl	XXH3_aarch64_sve_acc512
 	add	x1, x1, #64
@@ -105,6 +107,7 @@ ENTRY (XXH3_aarch64_sve_accumulate)
 	add	x10, x10, #1
 	cmp	x10, x3
 	b.lt	0b
+1:
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve_accumulate)
