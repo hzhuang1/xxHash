@@ -131,4 +131,36 @@ ENTRY (XXH3_aarch64_sve_scramble)
 END (XXH3_aarch64_sve_scramble)
 
 address_of_xxh3_prime_1:	.dword	xxh3_prime_1
+
+/*
+ * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
+ *		    x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit),
+ *		    z0 (xacc), z7 (index), p7
+ * Output Registers: z0 (xacc)
+ * Modified Registers: z0-z6, x1-x2, x10-x12
+ */
+ENTRY (XXH3_aarch64_sve_consume_stripes)
+	stp	x29, x30, [sp, #-16]!
+	mov	x29, sp
+	mov	x7, x1		// save x1 (nbStripesSoFarPtr)
+	ldr	x13, [x7]	// x13: nbStripesSoFarPtr[0]
+	sub	x14, x2, x13	// x14: nbStripesToEndofBlock
+	mov	x1, x3		// overwrite x1 to store input
+	lsl	x15, x13, #3	// x15: nbStripesSoFarPtr[0] * 8
+	cmp	x14, x4
+	#b.le	0f
+	add	x2, x5, x15	// overwrite x2 to store secret
+	mov	x3, x4		// overwrite x3 to store nbStripes
+	bl	XXH3_aarch64_sve_accumulate
+	ldp	x29, x30, [sp], #16
+	ret
+0:
+	/* need a scrambling operation */
+	sub	x16, x4, x14	// x16: nbStripesAfterBlock
+	add	x2, x5, x15	// overwrite x2 to store secret
+	mov	x3, x14		// overwirte x3 to store nbStripesToEndofBlock
+	bl	XXH3_aarch64_sve_accumulate
+	ldp	x29, x30, [sp], #16
+	ret
+END (XXH3_aarch64_sve_consume_stripes)
 #XXH3_aarch64_consumeStripes(xxh_u64* XXH_RESTRICT acc, size_t* XXH_RESTRICT nbStripeSoFarPtr, size_t nbStripesPerBlock, const xxh_u8* XXH_RESTRICT input, size_t nbScripes, const xxh_u8* XXH_RESTRICT secret, size_t secretLimit)

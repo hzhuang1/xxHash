@@ -59,10 +59,17 @@ extern void XXH3_aarch64_sve_accumulate(void* XXH_RESTRICT,
 				size_t);
 extern void XXH3_aarch64_sve_scramble(void* XXH_RESTRICT,
 				const void* XXH_RESTRICT);
+extern void XXH3_aarch64_sve_consume_stripes(void* XXH_RESTRICT,
+				size_t* XXH_RESTRICT,
+				size_t,
+				const void* XXH_RESTRICT,
+				size_t,
+				const void* XXH_RESTRICT,
+				size_t);
 
-static unsigned char in1[64] __attribute__((aligned(256)));
-static unsigned char in2[64] __attribute__((aligned(256)));
-static unsigned char out1[64] __attribute__((aligned(256)));
+static unsigned char in1[128] __attribute__((aligned(256)));
+static unsigned char in2[128] __attribute__((aligned(256)));
+static unsigned char out1[128] __attribute__((aligned(256)));
 
 void init_buf(unsigned char *buf, int blen)
 {
@@ -2127,8 +2134,15 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                       XXH3_f_accumulate_512 f_acc512)
 {
     size_t n;
+printf("#%s, nbStripes:%d\n", __func__, nbStripes);
     for (n = 0; n < nbStripes; n++ ) {
         const xxh_u8* const in = input + n*XXH_STRIPE_LEN;
+/*
+printf("#%s, n:%d, in off:%d, secret off:%d\n",
+	__func__, n,
+	n*XXH_STRIPE_LEN,
+	n*XXH_SECRET_CONSUME_RATE);
+*/
         //XXH_PREFETCH(in + XXH_PREFETCH_DIST);
         f_acc512(acc,
                  in,
@@ -2146,15 +2160,23 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
 {
     XXH_ASSERT(nbStripes <= nbStripesPerBlock);  /* can handle max 1 scramble per invocation */
     XXH_ASSERT(*nbStripesSoFarPtr < nbStripesPerBlock);
-    if (nbStripesPerBlock - *nbStripesSoFarPtr <= nbStripes) {
+printf("nbStripesPerBlock:%d, *ptr:%d, EndofBlock:%d\n", nbStripesPerBlock, *nbStripesSoFarPtr, nbStripesPerBlock - *nbStripesSoFarPtr);
+    //if (nbStripesPerBlock - *nbStripesSoFarPtr <= nbStripes) {
+if (0) {
         /* need a scrambling operation */
         size_t const nbStripesToEndofBlock = nbStripesPerBlock - *nbStripesSoFarPtr;
         size_t const nbStripesAfterBlock = nbStripes - nbStripesToEndofBlock;
+printf("condition#1, sofar:0x%x, endofblock:0x%x\n", nbStripesSoFarPtr[0], nbStripesToEndofBlock);
+        //XXH3_accumulate(acc, input, secret, nbStripesToEndofBlock, f_acc512);
+        //XXH3_accumulate(acc, input, secret, 1, f_acc512);
+        //XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, 8, f_acc512);
         XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
-        f_scramble(acc, secret + secretLimit);
-        XXH3_accumulate(acc, input + nbStripesToEndofBlock * XXH_STRIPE_LEN, secret, nbStripesAfterBlock, f_acc512);
+        //XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
+        //f_scramble(acc, secret + secretLimit);
+        //XXH3_accumulate(acc, input + nbStripesToEndofBlock * XXH_STRIPE_LEN, secret, nbStripesAfterBlock, f_acc512);
         *nbStripesSoFarPtr = nbStripesAfterBlock;
     } else {
+printf("condition#2\n");
         XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripes, f_acc512);
         *nbStripesSoFarPtr += nbStripes;
     }
@@ -2205,11 +2227,66 @@ int svacc_02(void* XXH_RESTRICT acc,
 	return 0;
 }
 
+/*
+ * Test:
+ * Each block: 512 bytes. Each Stripe: 64 bytes.
+ * The stripe number in each block is 8.
+ */
+int svacc_03(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret,
+	size_t nbStripes)
+{
+	size_t nbStripesSoFarPtr[2], nbStripesPerBlock;
+	size_t secretLimit;
+
+	int reg;
+	nbStripesPerBlock = 8;
+	nbStripesSoFarPtr[0] = 0;
+	/* load acc into z0 */
+	asm volatile (
+		"ld1d	z0.d, p7/z, [%[out]]\n\t"
+		:
+		: [out] "r" (out1)
+		: "z0", "p7"
+		);
+	XXH3_aarch64_sve_init_accum();
+	/* acc occupies x0. Other parameters are using x1-x3. */
+	//XXH3_aarch64_sve_accumulate(acc, input, secret, nbStripes);
+#if 0
+	XXH3_aarch64_sve_accumulate(acc, input,
+				secret + 1 * XXH_SECRET_CONSUME_RATE,
+				0);
+#else
+/*
+	asm volatile (
+		"mov	x3, x1\n\t"	// move input to x3
+		"mov	x4, #8\n\t"
+		"mov	x5, x2\n\t"	// move secret to x5
+		"mov	x1, %[ptr]\n\t"
+		"mov	x2, xzr\n\t"
+		"str	x2, [x1]\n\t"
+		"mov	x2, #8\n\t"
+		:
+		: [ptr] "r" (nbStripesSoFarPtr)
+		:
+		);
+*/
+	XXH3_aarch64_sve_consume_stripes(acc, nbStripesSoFarPtr,
+				nbStripesPerBlock,
+				input, nbStripes,
+				secret, secretLimit);
+#endif
+        //XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
+	return 0;
+}
+
 int svscramble_01(void* XXH_RESTRICT acc,
 		const void* XXH_RESTRICT secret)
 {
 	//int reg;
 	/* load acc into z0 */
+	/*
 	asm volatile (
 		"ptrue	p7.d\n\t"
 		"ld1d	z0.d, p7/z, [%[out]]\n\t"
@@ -2217,6 +2294,7 @@ int svscramble_01(void* XXH_RESTRICT acc,
 		: [out] "r" (out1)
 		: "z0", "p7"
 		);
+	*/
 	XXH3_aarch64_sve_scramble(acc, secret);
 /*
 	asm volatile (
@@ -2229,47 +2307,24 @@ int svscramble_01(void* XXH_RESTRICT acc,
 */
 	return 0;
 }
-void test_svacc(int bits)
+void test_svacc(size_t nbStripes)
 {
 	int i;
 	unsigned char vout[64];
 	void *out = vout;
-	size_t nbStripes;
-	void *out1, *in1, *in2;
 	int bytes;
 
-	if (bits < 512) {
-		printf("The minimum bits should be 512.\n");
-		return;
-	}
-	nbStripes = bits / 512;
-	bytes = (bits + 7) >> 3;
-	in1 = malloc(bytes);
-	if (!in1) {
-		printf("Not enough memory for in1 (%d-bit)!\n", bits);
-		goto out_in1;
-	}
-	in2 = malloc(bytes);
-	if (!in2) {
-		printf("Not enough memory for in2 (%d-bit)!\n", bits);
-		goto out_in2;
-	}
-	out1 = malloc(bytes);
-	if (!out1) {
-		printf("Not enough memory for in2 (%d-bit)!\n", bits);
-		goto out_out1;
-	}
-	set_buf(in1, 0x55, bits);
-	init_buf(in2, bits);
-	clear_buf(out1, 512);
+	set_buf(in1, 0x55, 1024);
+	init_buf(in2, 1024);
+	clear_buf(out1, 1024);
 	//svacc_01(out1, in1, in2);
 	//svacc_02(out1, in1, in2, nbStripes);
-	svscramble_01(out1, in2);
+	svacc_03(out1, in1, in2, nbStripes);
+	//svscramble_01(out1, in2);
 #if 1
 	/* dump z0 */
 	asm volatile (
 		"st1d	z0.d, p7, [%[out]]\n\t"
-		"dsb	sy\n\t"
 		:
 		: [out] "r" (out)
 		: "z0", "p7", "memory"
@@ -2299,62 +2354,18 @@ void test_svacc(int bits)
 	);
 	dump_bits("SECRET", out, 512);
 #endif
-	free(in1);
-	free(in2);
-	free(out1);
-	return;
-out_out1:
-	free(in2);
-out_in2:
-	free(in1);
-out_in1:
 	return;
 }
 
-void test_xxh3_accum(int bits)
+void test_xxh3_accum(size_t nbStripes)
 {
-	void *out1, *in1, *in2;
-	int bytes;
-	size_t nbStripes;
-
-	if (bits < 512) {
-		printf("The minimum bits should be 512.\n");
-		return;
-	}
-	nbStripes = bits / 512;
-	bytes = (bits + 7) >> 3;
-	in1 = malloc(bytes);
-	if (!in1) {
-		printf("Not enough memory for in1 (%d-bit)!\n", bits);
-		goto out_in1;
-	}
-	in2 = malloc(bytes);
-	if (!in2) {
-		printf("Not enough memory for in2 (%d-bit)!\n", bits);
-		goto out_in2;
-	}
-	out1 = malloc(bytes);
-	if (!out1) {
-		printf("Not enough memory for in2 (%d-bit)!\n", bits);
-		goto out_out1;
-	}
-
 	printf("Test in %s\n", __func__);
-	set_buf(in1, 0x55, bits);
-	init_buf(in2, bits);
-	clear_buf(out1, 512);
+	set_buf(in1, 0x55, 1024);
+	init_buf(in2, 1024);
+	clear_buf(out1, 1024);
 	XXH3_accumulate((xxh_u64*)out1, in1, in2, nbStripes,
 			XXH3_accumulate_512_scalar);
 	dump_bits("ACC", out1, 512);
-	free(in1);
-	free(in2);
-	free(out1);
-	return;
-out_out1:
-	free(in2);
-out_in2:
-	free(in1);
-out_in1:
 	return;
 }
 
@@ -2389,7 +2400,7 @@ void test_xxh3_scramble(int bits)
 	printf("Test in %s\n", __func__);
 	set_buf(in1, 0x55, bits);
 	init_buf(in2, bits);
-	clear_buf(out1, 512);
+	clear_buf(out1, bits);
 	XXH3_scrambleAcc_scalar(out1, in2);
 	dump_bits("ACC", out1, 512);
 	free(in1);
@@ -2404,58 +2415,37 @@ out_in1:
 	return;
 }
 
-void test_xxh3_consume_stripes(int bits)
+void test_xxh3_consume_stripes(size_t nbStripes)
 {
-	void *out1, *in1, *in2;
-	int bytes;
-	size_t nbStripes, nbStripesPerBlock, secretLimit;
-	size_t total_nbStripes;
+	size_t nbStripesPerBlock, secretLimit;
+	size_t nbStripesSoFarPtr[2];
 
-	if (bits < 512) {
-		printf("The minimum bits should be 512.\n");
-		return;
-	}
-	nbStripes = bits / 512;
-	nbStripesPerBlock = nbStripes;
-	total_nbStripes = nbStripes;
+	nbStripesPerBlock = 8;
 	secretLimit = nbStripesPerBlock * XXH_SECRET_CONSUME_RATE;
-	bytes = (bits + 7) >> 3;
-	in1 = malloc(bytes);
-	if (!in1) {
-		printf("Not enough memory for in1 (%d-bit)!\n", bits);
-		goto out_in1;
-	}
-	in2 = malloc(bytes);
-	if (!in2) {
-		printf("Not enough memory for in2 (%d-bit)!\n", bits);
-		goto out_in2;
-	}
-	out1 = malloc(bytes);
-	if (!out1) {
-		printf("Not enough memory for in2 (%d-bit)!\n", bits);
-		goto out_out1;
-	}
+	nbStripesSoFarPtr[0] = 0;
 
 	printf("Test in %s\n", __func__);
-	set_buf(in1, 0x55, bits);
-	init_buf(in2, bits);
-	clear_buf(out1, 512);
+	nbStripesSoFarPtr[0] = 0;
+	set_buf(in1, 0x55, 1024);
+	init_buf(in2, 1024);
+	clear_buf(out1, 1024);
 	// make nbStripesPerBlock equals to nbStripes for one block.
-	XXH3_consumeStripes(out1, &total_nbStripes, nbStripes,
+	XXH3_consumeStripes(out1, nbStripesSoFarPtr, nbStripesPerBlock,
 			in1, nbStripes,
 			in2, secretLimit,
 			XXH3_accumulate_512_scalar,
 			XXH3_scrambleAcc_scalar);
 	dump_bits("ACC", out1, 512);
-	free(in1);
-	free(in2);
-	free(out1);
-	return;
-out_out1:
-	free(in2);
-out_in2:
-	free(in1);
-out_in1:
+
+	nbStripesSoFarPtr[0] = 0;
+	set_buf(in1, 0x55, 1024);
+	init_buf(in2, 1024);
+	clear_buf(out1, 1024);
+	XXH3_accumulate((xxh_u64*)out1, in1, in2, nbStripes,
+			XXH3_accumulate_512_scalar);
+	//XXH3_scrambleAcc_scalar(out1, in2);
+	dump_bits("ACC", out1, 512);
+
 	return;
 }
 
@@ -2648,10 +2638,10 @@ int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
 
-	test_xxh3_consume_stripes(512);
-	//test_svacc(1024);
+	test_svacc(8);
+	test_xxh3_accum(8);
+	test_xxh3_consume_stripes(8);
 	//test_accum("svmad_05", svmad_05, 1024);
-	//test_xxh3_accum(2048);
 	//test_xxh3_scramble(1024);
 	return 0;
 	while ((op = getopt(argc, argv, ":p")) != -1) {
