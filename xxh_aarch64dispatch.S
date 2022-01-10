@@ -137,7 +137,7 @@ address_of_xxh3_prime_1:	.dword	xxh3_prime_1
  *		    x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit),
  *		    z0 (xacc), z7 (index), p7
  * Output Registers: z0 (xacc)
- * Modified Registers: z0-z6, x1-x2, x10-x12
+ * Modified Registers: z0-z6, x1-x8, x10-x16
  */
 ENTRY (XXH3_aarch64_sve_consume_stripes)
 	stp	x29, x30, [sp, #-16]!
@@ -146,12 +146,15 @@ ENTRY (XXH3_aarch64_sve_consume_stripes)
 	ldr	x13, [x7]	// x13: nbStripesSoFarPtr[0]
 	sub	x14, x2, x13	// x14: nbStripesToEndofBlock
 	mov	x1, x3		// overwrite x1 to store input
+	mov	x8, x3		// save x3 (input)
 	lsl	x15, x13, #3	// x15: nbStripesSoFarPtr[0] * 8
 	cmp	x14, x4
-	#b.le	0f
+	b.le	0f
 	add	x2, x5, x15	// overwrite x2 to store secret
 	mov	x3, x4		// overwrite x3 to store nbStripes
 	bl	XXH3_aarch64_sve_accumulate
+	add	x13, x13, x4
+	str	x13, [x7]
 	ldp	x29, x30, [sp], #16
 	ret
 0:
@@ -160,6 +163,14 @@ ENTRY (XXH3_aarch64_sve_consume_stripes)
 	add	x2, x5, x15	// overwrite x2 to store secret
 	mov	x3, x14		// overwirte x3 to store nbStripesToEndofBlock
 	bl	XXH3_aarch64_sve_accumulate
+	add	x1, x5, x6	// overwrite x1 to store secret
+	bl	XXH3_aarch64_sve_scramble
+	lsl	x2, x14, #6	// x2: nbStripesToEndofBlock * XXH_STRIPE_LEN
+	add	x1, x8, x2	// overwrite x1 to store input
+	mov	x2, x5		// overwrite x2 to store secret
+	mov	x3, x16		// overwrite x3 to store nbStripesAfterBlock
+	bl	XXH3_aarch64_sve_accumulate
+	str	x16, [x7]
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve_consume_stripes)

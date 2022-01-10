@@ -2161,19 +2161,14 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
     XXH_ASSERT(nbStripes <= nbStripesPerBlock);  /* can handle max 1 scramble per invocation */
     XXH_ASSERT(*nbStripesSoFarPtr < nbStripesPerBlock);
 printf("nbStripesPerBlock:%d, *ptr:%d, EndofBlock:%d\n", nbStripesPerBlock, *nbStripesSoFarPtr, nbStripesPerBlock - *nbStripesSoFarPtr);
-    //if (nbStripesPerBlock - *nbStripesSoFarPtr <= nbStripes) {
-if (0) {
+    if (nbStripesPerBlock - *nbStripesSoFarPtr <= nbStripes) {
         /* need a scrambling operation */
         size_t const nbStripesToEndofBlock = nbStripesPerBlock - *nbStripesSoFarPtr;
         size_t const nbStripesAfterBlock = nbStripes - nbStripesToEndofBlock;
 printf("condition#1, sofar:0x%x, endofblock:0x%x\n", nbStripesSoFarPtr[0], nbStripesToEndofBlock);
-        //XXH3_accumulate(acc, input, secret, nbStripesToEndofBlock, f_acc512);
-        //XXH3_accumulate(acc, input, secret, 1, f_acc512);
-        //XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, 8, f_acc512);
         XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
-        //XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
-        //f_scramble(acc, secret + secretLimit);
-        //XXH3_accumulate(acc, input + nbStripesToEndofBlock * XXH_STRIPE_LEN, secret, nbStripesAfterBlock, f_acc512);
+        f_scramble(acc, secret + secretLimit);
+        XXH3_accumulate(acc, input + nbStripesToEndofBlock * XXH_STRIPE_LEN, secret, nbStripesAfterBlock, f_acc512);
         *nbStripesSoFarPtr = nbStripesAfterBlock;
     } else {
 printf("condition#2\n");
@@ -2242,7 +2237,8 @@ int svacc_03(void* XXH_RESTRICT acc,
 
 	int reg;
 	nbStripesPerBlock = 8;
-	nbStripesSoFarPtr[0] = 0;
+	nbStripesSoFarPtr[0] = 1;
+	secretLimit = nbStripesPerBlock * XXH_SECRET_CONSUME_RATE;
 	/* load acc into z0 */
 	asm volatile (
 		"ld1d	z0.d, p7/z, [%[out]]\n\t"
@@ -2422,10 +2418,9 @@ void test_xxh3_consume_stripes(size_t nbStripes)
 
 	nbStripesPerBlock = 8;
 	secretLimit = nbStripesPerBlock * XXH_SECRET_CONSUME_RATE;
-	nbStripesSoFarPtr[0] = 0;
+	nbStripesSoFarPtr[0] = 1;
 
 	printf("Test in %s\n", __func__);
-	nbStripesSoFarPtr[0] = 0;
 	set_buf(in1, 0x55, 1024);
 	init_buf(in2, 1024);
 	clear_buf(out1, 1024);
@@ -2437,6 +2432,7 @@ void test_xxh3_consume_stripes(size_t nbStripes)
 			XXH3_scrambleAcc_scalar);
 	dump_bits("ACC", out1, 512);
 
+#if 0
 	nbStripesSoFarPtr[0] = 0;
 	set_buf(in1, 0x55, 1024);
 	init_buf(in2, 1024);
@@ -2445,6 +2441,7 @@ void test_xxh3_consume_stripes(size_t nbStripes)
 			XXH3_accumulate_512_scalar);
 	//XXH3_scrambleAcc_scalar(out1, in2);
 	dump_bits("ACC", out1, 512);
+#endif
 
 	return;
 }
@@ -2638,9 +2635,9 @@ int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
 
-	test_svacc(8);
-	test_xxh3_accum(8);
-	test_xxh3_consume_stripes(8);
+	test_svacc(31);
+	//test_xxh3_accum(8);
+	test_xxh3_consume_stripes(31);
 	//test_accum("svmad_05", svmad_05, 1024);
 	//test_xxh3_scramble(1024);
 	return 0;
