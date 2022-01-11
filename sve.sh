@@ -166,3 +166,6 @@ case $ACTION in
 		run_debug
 		;;
 esac
+
+# speaker beep
+echo -ne '\007'
