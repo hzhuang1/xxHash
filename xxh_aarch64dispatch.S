@@ -155,6 +155,7 @@ ENTRY (XXH3_aarch64_sve_consume_stripes)
 	bl	XXH3_aarch64_sve_accumulate
 	add	x13, x13, x4
 	str	x13, [x7]
+	st1d	{z0.d}, p7, [x0, x11, lsl #3]
 	ldp	x29, x30, [sp], #16
 	ret
 0:
@@ -171,6 +172,7 @@ ENTRY (XXH3_aarch64_sve_consume_stripes)
 	mov	x3, x16		// overwrite x3 to store nbStripesAfterBlock
 	bl	XXH3_aarch64_sve_accumulate
 	str	x16, [x7]
+	st1d	{z0.d}, p7, [x0, x11, lsl #3]
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve_consume_stripes)
