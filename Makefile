@@ -96,10 +96,23 @@ ifeq ($(DISPATCH),1)
 xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
 xxhsum: xxh_x86dispatch.o
 endif
+
 ifeq ($(AARCH64_DISPATCH),1)
 xxhsum: CPPFLAGS += -DXXHSUM_AARCH64_DISPATCH=1
-xxhsum: xxh_aarch64dispatch.o
-endif
+xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS) xxh_aarch64dispatch.o
+	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
+
+xxhsum32: CFLAGS += -m32  ## generate CLI in 32-bits mode
+xxhsum32: xxhash.c $(XXHSUM_SPLIT_SRCS) ## do not generate object (avoid mixing different ABI)
+	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
+
+xxh_aarch64dispatch.o: xxh_aarch64dispatch.S xxh_aarch64dispatch.h
+	$(CC) $(FLAGS) -o xxh_aarch64dispatch.o -c xxh_aarch64dispatch.S
+
+xxhash.o: xxhash.c xxhash.h
+xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
+    xxhash.h xxh_aarch64dispatch.h
+else
 xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
 
@@ -116,9 +129,8 @@ xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
     xxhash.h xxh_x86dispatch.h
 xxh_x86dispatch.o: xxh_x86dispatch.c xxh_x86dispatch.h xxhash.h
+endif
 
-xxh_aarch64dispatch.o: xxh_aarch64dispatch.S xxhash.h
-	$(AS) -o xxh_aarch64dispatch.o xxh_aarch64dispatch.S
 
 .PHONY: xxhsum_and_links
 xxhsum_and_links: xxhsum xxh32sum xxh64sum xxh128sum
