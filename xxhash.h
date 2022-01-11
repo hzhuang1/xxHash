@@ -4798,6 +4798,18 @@ XXH3_64bits_reset_withSecret(XXH3_state_t* statePtr, const void* secret, size_t 
     return XXH_OK;
 }
 
+#if defined (__aarch64__)
+
+XXH_FORCE_INLINE void
+XXH3_aarch64_consumeStripes(xxh_u64* XXH_RESTRICT acc,
+			    size_t* XXH_RESTRICT nbStripeSoFarPtr,
+			    size_t nbStripesPerBlock,
+			    const xxh_u8* XXH_RESTRICT input,
+			    size_t nbScripes,
+			    const xxh_u8* XXH_RESTRICT secret,
+			    size_t secretLimit);
+#endif
+
 /*! @ingroup xxh3_family */
 XXH_PUBLIC_API XXH_errorcode
 XXH3_64bits_reset_withSeed(XXH3_state_t* statePtr, XXH64_hash_t seed)
@@ -4812,6 +4824,22 @@ XXH3_64bits_reset_withSeed(XXH3_state_t* statePtr, XXH64_hash_t seed)
 /* Note : when XXH3_consumeStripes() is invoked,
  * there must be a guarantee that at least one more byte must be consumed from input
  * so that the function can blindly consume all stripes using the "normal" secret segment */
+#if defined(XXH_AARCH64_DISPATCH)
+XXH_FORCE_INLINE void
+XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
+                    size_t* XXH_RESTRICT nbStripesSoFarPtr, size_t nbStripesPerBlock,
+                    const xxh_u8* XXH_RESTRICT input, size_t nbStripes,
+                    const xxh_u8* XXH_RESTRICT secret, size_t secretLimit,
+                    XXH3_f_accumulate_512 f_acc512,
+                    XXH3_f_scrambleAcc f_scramble)
+{
+	XXH3_aarch64_sve_consume_stripes(acc, nbStripesSoFarPtr,
+					 nbStripesPerBlock,
+					 input, nbStripes,
+					 secret, secretLimit);
+}
+
+#else
 XXH_FORCE_INLINE void
 XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     size_t* XXH_RESTRICT nbStripesSoFarPtr, size_t nbStripesPerBlock,
@@ -4835,6 +4863,7 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
         *nbStripesSoFarPtr += nbStripes;
     }
 }
+#endif
 
 /*
  * Both XXH3_64bits_update and XXH3_128bits_update use this routine.
@@ -4916,6 +4945,7 @@ XXH3_64bits_update(XXH3_state_t* state, const void* input, size_t len)
 {
     return XXH3_aarch64_update(state, input, len);
 }
+
 #else
 XXH_PUBLIC_API XXH_errorcode
 XXH3_64bits_update(XXH3_state_t* state, const void* input, size_t len)
