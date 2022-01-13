@@ -89,7 +89,8 @@ default: DEBUGFLAGS=
 default: lib xxhsum_and_links
 
 .PHONY: all
-all: lib xxhsum xxhsum_inlinedXXH
+all: lib xxhsum
+#all: lib xxhsum xxhsum_inlinedXXH
 
 ## xxhsum is the command line interface (CLI)
 ifeq ($(DISPATCH),1)
@@ -138,9 +139,9 @@ xxhsum_and_links: xxhsum xxh32sum xxh64sum xxh128sum
 xxh32sum xxh64sum xxh128sum: xxhsum
 	ln -sf $<$(EXT) $@$(EXT)
 
-xxhsum_inlinedXXH: CPPFLAGS += -DXXH_INLINE_ALL
-xxhsum_inlinedXXH: $(XXHSUM_SPLIT_SRCS)
-	$(CC) $(FLAGS) $< -o $@$(EXT)
+#xxhsum_inlinedXXH: CPPFLAGS += -DXXH_INLINE_ALL
+#xxhsum_inlinedXXH: $(XXHSUM_SPLIT_SRCS)
+#	$(CC) $(FLAGS) $< -o $@$(EXT)
 
 
 # library
@@ -371,7 +372,8 @@ cppcheck:  ## check C source files using $(CPPCHECK) static analyzer
 namespaceTest:  ## ensure XXH_NAMESPACE redefines all public symbols
 	$(CC) -c xxhash.c
 	$(CC) -DXXH_NAMESPACE=TEST_ -c xxhash.c -o xxhash2.o
-	$(CC) xxhash.o xxhash2.o $(XXHSUM_SPLIT_SRCS)  -o xxhsum2  # will fail if one namespace missing (symbol collision)
+	$(CC) $(FLAGS) -o xxh_aarch64dispatch.o -c xxh_aarch64dispatch.S
+	$(CC) xxhash.o xxhash2.o $(XXHSUM_SPLIT_SRCS)  xxh_aarch64dispatch.o -o xxhsum2  # will fail if one namespace missing (symbol collision)
 	$(RM) *.o xxhsum2  # clean
 
 MAN = $(XXHSUM_SRC_DIR)/xxhsum.1

@@ -40,6 +40,18 @@ ENTRY (XXH3_aarch64_consumeStripes)
 END (XXH3_aarch64_consumeStripes)
 
 /*
+ */
+ENTRY (XXH3_aarch64_sve_init_acc)
+	ld1d	z0.d, p7/z, [x0]
+	ret
+END (XXH3_aarch64_sve_init_acc)
+
+ENTRY (XXH3_aarch64_sve_deinit_acc)
+	st1d	z0.d, p7, [x0]
+	ret
+END (XXH3_aarch64_sve_deinit_acc)
+
+/*
  * Calculate index [1,0,3,2,...] & save it in register z7.
  * Input Registers: none
  * Output Registers: z7 (index), p7 (true for D)
@@ -176,4 +188,68 @@ ENTRY (XXH3_aarch64_sve_consume_stripes)
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve_consume_stripes)
-#XXH3_aarch64_consumeStripes(xxh_u64* XXH_RESTRICT acc, size_t* XXH_RESTRICT nbStripeSoFarPtr, size_t nbStripesPerBlock, const xxh_u8* XXH_RESTRICT input, size_t nbScripes, const xxh_u8* XXH_RESTRICT secret, size_t secretLimit)
+
+/*
+ * Input Registers: x0 (acc), x1 (input), x2 (len), x3 (secret), x4 (secretSize),
+ *		    z0 (xacc), z7 (index), p7
+ * Output Registers: z0 (xacc)
+ * Modified Registers: z0-z6, x1-x8, x10-x16
+ */
+ENTRY (XXH3_aarch64_sve_internal_loop)
+	stp	x29, x30, [sp, #-32]!
+	stp	x19, x20, [sp, #16]
+	mov	x29, sp
+	mov	x13, x1		// save input to x13
+	mov	x14, x2		// save len to x14
+	mov	x15, x3		// save secret to x15
+	mov	x19, x4		// save secretSize to x19
+	/*
+	 * nbStripesPerBlock =
+	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
+	 */
+	sub	x5, x4, #64
+	lsr	x5, x5, #3	// x5: nbStripesPerBlock
+	/* block_len = XXH_STRIPE_LEN * nbStripesPerBlock; */
+	lsl	x6, x5, #6	// x6: block_len
+	sub	x7, x2, #1	// x7: len - 1
+	/* nb_blocks = (len - 1) / block_len; */
+	udiv	x20, x7, x6	// x20: nb_blocks
+	mov	x9, xzr		// x9: n
+	cmp	x9, x20
+	b.ge	1f
+0:
+	mul	x1, x6, x9	// x1: n * block_len
+	add	x1, x1, x13	// x1: input + n * block_len
+	mov	x2, x15		// x2: secret
+	mov	x3, x5		// x3: nbStripesPerBlock
+	bl	XXH3_aarch64_sve_accumulate
+	/* secret + secretSize - XXH_STRIPE_LEN */
+	add	x1, x15, x4
+	sub	x1, x1, #64
+	bl	XXH3_aarch64_sve_scramble
+	add	x9, x9, #1
+	cmp	x9, x20
+	b.lt	0b
+1:
+	/*
+	 * nbStripes =
+	 * ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
+	 */
+	mul	x9, x6, x20	// overwrite x9 (n)
+	sub	x7, x7, x9
+	lsr	x3, x7, #6	// x3: nbStripes
+	mov	x2, x15		// x2: secret
+	add	x1, x13, x9	// x1: input
+	bl	XXH3_aarch64_sve_accumulate
+	/* p = input + len - XXH_STRIPE_LEN; */
+	add	x1, x13, x14
+	sub	x1, x1, #64	// x1: p
+	/* secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START); */
+	add	x2, x15, x19
+	sub	x2, x2, #64
+	sub	x2, x2, #7
+	bl	XXH3_aarch64_sve_acc512
+	ldp	x19, x20, [sp, #16]
+	ldp	x29, x30, [sp], #32
+	ret
+END (XXH3_aarch64_sve_internal_loop)

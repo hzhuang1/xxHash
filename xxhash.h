@@ -4456,6 +4456,22 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
     }
 }
 
+#if 1
+#define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
+XXH_FORCE_INLINE void
+XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
+                      const xxh_u8* XXH_RESTRICT input, size_t len,
+                      const xxh_u8* XXH_RESTRICT secret, size_t secretSize,
+                            XXH3_f_accumulate_512 f_acc512,
+                            XXH3_f_scrambleAcc f_scramble)
+{
+	/* load acc into z0 */
+	XXH3_aarch64_sve_init_acc();
+	XXH3_aarch64_sve_init_accum();
+	XXH3_aarch64_sve_internal_loop(acc, input, len, secret, secretSize);
+	XXH3_aarch64_sve_deinit_acc();
+}
+#else
 XXH_FORCE_INLINE void
 XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
                       const xxh_u8* XXH_RESTRICT input, size_t len,
@@ -4488,6 +4504,7 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
             f_acc512(acc, p, secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START);
     }   }
 }
+#endif
 
 XXH_FORCE_INLINE xxh_u64
 XXH3_mix2Accs(const xxh_u64* XXH_RESTRICT acc, const xxh_u8* XXH_RESTRICT secret)
@@ -4833,6 +4850,8 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     XXH3_f_accumulate_512 f_acc512,
                     XXH3_f_scrambleAcc f_scramble)
 {
+	XXH3_aarch64_sve_init_acc();
+	XXH3_aarch64_sve_init_accum();
 	XXH3_aarch64_sve_consume_stripes(acc, nbStripesSoFarPtr,
 					 nbStripesPerBlock,
 					 input, nbStripes,
