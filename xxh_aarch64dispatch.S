@@ -40,25 +40,29 @@ ENTRY (XXH3_aarch64_consumeStripes)
 END (XXH3_aarch64_consumeStripes)
 
 /*
+ * Load data from pointer x0 into z0 register.
+ * Input Registers: x0
+ * Output Registers: p7 (true for D), z0
+ * Modified Registers: p7, z0
  */
 ENTRY (XXH3_aarch64_sve_init_acc)
-	ld1d	z0.d, p7/z, [x0]
+	ptrue	p7.d
+	ld1d	{z0.d}, p7/z, [x0]
 	ret
 END (XXH3_aarch64_sve_init_acc)
 
 ENTRY (XXH3_aarch64_sve_deinit_acc)
-	st1d	z0.d, p7, [x0]
+	st1d	{z0.d}, p7, [x0]
 	ret
 END (XXH3_aarch64_sve_deinit_acc)
 
 /*
  * Calculate index [1,0,3,2,...] & save it in register z7.
- * Input Registers: none
- * Output Registers: z7 (index), p7 (true for D)
- * Modified Registers: p1, p7, z1, z7
+ * Input Registers: p7 (true for D)
+ * Output Registers: z7 (index)
+ * Modified Registers: p1, z1, z7
  */
 ENTRY (XXH3_aarch64_sve_init_accum)
-	ptrue	p7.d
 	mov	z1.d, #2
 	pfalse	p1.b
 	index	z7.d, #1, #1
@@ -199,6 +203,7 @@ ENTRY (XXH3_aarch64_sve_internal_loop)
 	stp	x29, x30, [sp, #-32]!
 	stp	x19, x20, [sp, #16]
 	mov	x29, sp
+
 	mov	x13, x1		// save input to x13
 	mov	x14, x2		// save len to x14
 	mov	x15, x3		// save secret to x15
@@ -249,6 +254,7 @@ ENTRY (XXH3_aarch64_sve_internal_loop)
 	sub	x2, x2, #64
 	sub	x2, x2, #7
 	bl	XXH3_aarch64_sve_acc512
+	//st1d	z0.d, p7, [x0]
 	ldp	x19, x20, [sp, #16]
 	ldp	x29, x30, [sp], #32
 	ret

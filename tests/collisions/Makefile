@@ -33,6 +33,8 @@ CXXFLAGS += -Wall -Wextra -Wconversion \
 LDFLAGS  += -pthread
 TESTHASHES = 110000000
 
+CFLAGS	+= -march=armv8-a+sve
+
 HASH_SRC := $(sort $(wildcard allcodecs/*.c allcodecs/*.cc))
 HASH_OBJ := $(patsubst %.c,%.o,$(HASH_SRC))
 
@@ -43,10 +45,13 @@ default: release
 .PHONY: all
 all: release
 
-collisionsTest: main.o pool.o threading.o sort.o $(HASH_OBJ)
+collisionsTest: main.o pool.o threading.o sort.o $(HASH_OBJ) xxh_aarch64dispatch.o
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 
 main.o: hashes.h xxhash.h
+
+xxh_aarch64dispatch.o: xxh_aarch64dispatch.S
+	$(CC) $(CFLAGS) -o xxh_aarch64dispatch.o -c xxh_aarch64dispatch.S
 
 release: CXXFLAGS += -O3
 release: CFLAGS += -O3

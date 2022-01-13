@@ -4457,6 +4457,13 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
 }
 
 #if 1
+extern void XXH3_aarch64_sve_init_acc(xxh_u64* XXH_RESTRICT);
+extern void XXH3_aarch64_sve_deinit_acc(xxh_u64* XXH_RESTRICT);
+extern void XXH3_aarch64_sve_init_accum(void);
+extern void XXH3_aarch64_sve_internal_loop(xxh_u64* XXH_RESTRICT,
+                      const xxh_u8* XXH_RESTRICT, size_t,
+                      const xxh_u8* XXH_RESTRICT, size_t);
+
 #define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
 XXH_FORCE_INLINE void
 XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
@@ -4465,11 +4472,22 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
                             XXH3_f_accumulate_512 f_acc512,
                             XXH3_f_scrambleAcc f_scramble)
 {
+#if 0
+	{
+		int i;
+		printf("%s acc:", __func__);
+		for (i = 0; i < 64; i++)
+			printf("%x-", *((unsigned char *)acc + i));
+		printf("\n");
+	}
+#endif
 	/* load acc into z0 */
-	XXH3_aarch64_sve_init_acc();
+	XXH3_aarch64_sve_init_acc(acc);
 	XXH3_aarch64_sve_init_accum();
 	XXH3_aarch64_sve_internal_loop(acc, input, len, secret, secretSize);
-	XXH3_aarch64_sve_deinit_acc();
+	XXH3_aarch64_sve_deinit_acc(acc);
+	(void)f_acc512;
+	(void)f_scramble;
 }
 #else
 XXH_FORCE_INLINE void
@@ -4487,6 +4505,7 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
 
     XXH_ASSERT(secretSize >= XXH3_SECRET_SIZE_MIN);
 
+printf("nb_blocks:%d\n", nb_blocks);
     for (n = 0; n < nb_blocks; n++) {
         XXH3_accumulate(acc, input + n*block_len, secret, nbStripesPerBlock, f_acc512);
         f_scramble(acc, secret + secretSize - XXH_STRIPE_LEN);
@@ -4497,7 +4516,6 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
     {   size_t const nbStripes = ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
         XXH_ASSERT(nbStripes <= (secretSize / XXH_SECRET_CONSUME_RATE));
         XXH3_accumulate(acc, input + nb_blocks*block_len, secret, nbStripes, f_acc512);
-
         /* last stripe */
         {   const xxh_u8* const p = input + len - XXH_STRIPE_LEN;
 #define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
@@ -4850,7 +4868,7 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     XXH3_f_accumulate_512 f_acc512,
                     XXH3_f_scrambleAcc f_scramble)
 {
-	XXH3_aarch64_sve_init_acc();
+	XXH3_aarch64_sve_init_acc(acc);
 	XXH3_aarch64_sve_init_accum();
 	XXH3_aarch64_sve_consume_stripes(acc, nbStripesSoFarPtr,
 					 nbStripesPerBlock,

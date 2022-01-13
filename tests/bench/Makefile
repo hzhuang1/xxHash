@@ -38,6 +38,7 @@ LDFLAGS  += $(MOREFLAGS)
 
 OBJ_LIST  = main.o bhDisplay.o benchHash.o benchfn.o timefn.o \
 	    xxh_aarch64dispatch.o
+CFLAGS	+= -march=armv8-a+sve
 
 
 default: benchHash
