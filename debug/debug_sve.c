@@ -66,6 +66,9 @@ extern void XXH3_aarch64_sve_consume_stripes(void* XXH_RESTRICT,
 				size_t,
 				const void* XXH_RESTRICT,
 				size_t);
+extern void XXH3_aarch64_sve_internal_loop(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT, size_t,
+				const void* XXH_RESTRICT, size_t);
 
 static unsigned char in1[128] __attribute__((aligned(256)));
 static unsigned char in2[128] __attribute__((aligned(256)));
@@ -2150,7 +2153,7 @@ printf("#%s, n:%d, in off:%d, secret off:%d\n",
     }
 }
 
-XXH_FORCE_INLINE void
+/*XXH_FORCE_INLINE*/ void
 XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     size_t* XXH_RESTRICT nbStripesSoFarPtr, size_t nbStripesPerBlock,
                     const xxh_u8* XXH_RESTRICT input, size_t nbStripes,
@@ -2174,6 +2177,42 @@ printf("condition#1, sofar:0x%x, endofblock:0x%x\n", nbStripesSoFarPtr[0], nbStr
 printf("condition#2\n");
         XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripes, f_acc512);
         *nbStripesSoFarPtr += nbStripes;
+    }
+}
+
+/*XXH_FORCE_INLINE*/ void
+XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
+                      const xxh_u8* XXH_RESTRICT input, size_t len,
+                      const xxh_u8* XXH_RESTRICT secret, size_t secretSize,
+                            XXH3_f_accumulate_512 f_acc512,
+                            XXH3_f_scrambleAcc f_scramble)
+{
+    size_t const nbStripesPerBlock = (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
+    size_t const block_len = XXH_STRIPE_LEN * nbStripesPerBlock;
+    size_t const nb_blocks = (len - 1) / block_len;
+
+    size_t n;
+
+    XXH_ASSERT(secretSize >= XXH3_SECRET_SIZE_MIN);
+
+	printf("len:%d, block_len:%d, nbStripesPerBlock:%d\n", len, block_len, nbStripesPerBlock);
+	printf("n:%d, n*block_len:%d, nb_blocks:%d\n", n, n*block_len, nb_blocks);
+    for (n = 0; n < nb_blocks; n++) {
+        XXH3_accumulate(acc, input + n*block_len, secret, nbStripesPerBlock, f_acc512);
+        f_scramble(acc, secret + secretSize - XXH_STRIPE_LEN);
+    }
+
+    /* last partial block */
+    XXH_ASSERT(len > XXH_STRIPE_LEN);
+    {   size_t const nbStripes = ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
+        XXH_ASSERT(nbStripes <= (secretSize / XXH_SECRET_CONSUME_RATE));
+        XXH3_accumulate(acc, input + nb_blocks*block_len, secret, nbStripes, f_acc512);
+
+        /* last stripe */
+        {   const xxh_u8* const p = input + len - XXH_STRIPE_LEN;
+#define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
+            f_acc512(acc, p, secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START);
+        }
     }
 }
 
@@ -2248,33 +2287,35 @@ int svacc_03(void* XXH_RESTRICT acc,
 		);
 	XXH3_aarch64_sve_init_accum();
 	/* acc occupies x0. Other parameters are using x1-x3. */
-	//XXH3_aarch64_sve_accumulate(acc, input, secret, nbStripes);
-#if 0
-	XXH3_aarch64_sve_accumulate(acc, input,
-				secret + 1 * XXH_SECRET_CONSUME_RATE,
-				0);
-#else
-/*
-	asm volatile (
-		"mov	x3, x1\n\t"	// move input to x3
-		"mov	x4, #8\n\t"
-		"mov	x5, x2\n\t"	// move secret to x5
-		"mov	x1, %[ptr]\n\t"
-		"mov	x2, xzr\n\t"
-		"str	x2, [x1]\n\t"
-		"mov	x2, #8\n\t"
-		:
-		: [ptr] "r" (nbStripesSoFarPtr)
-		:
-		);
-*/
 	XXH3_aarch64_sve_consume_stripes(acc, nbStripesSoFarPtr,
 				nbStripesPerBlock,
 				input, nbStripes,
 				secret, secretLimit);
-#endif
-        //XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
 	return 0;
+}
+
+int svacc_04(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret,
+	size_t nbStripes)
+{
+	size_t nbStripesPerBlock;
+	size_t secretLimit, secretSize;
+
+	nbStripesPerBlock = 4;
+	secretLimit = nbStripesPerBlock * XXH_SECRET_CONSUME_RATE;
+	secretSize = secretLimit + XXH_STRIPE_LEN;
+	/* load acc into z0 */
+	asm volatile (
+		"ld1d	z0.d, p7/z, [%[out]]\n\t"
+		:
+		: [out] "r" (out1)
+		: "z0", "p7"
+		);
+	XXH3_aarch64_sve_init_accum();
+	XXH3_aarch64_sve_internal_loop(acc,
+					input, 1024,
+					secret, secretSize);
 }
 
 int svscramble_01(void* XXH_RESTRICT acc,
@@ -2315,9 +2356,9 @@ void test_svacc(size_t nbStripes)
 	clear_buf(out1, 1024);
 	//svacc_01(out1, in1, in2);
 	//svacc_02(out1, in1, in2, nbStripes);
-	svacc_03(out1, in1, in2, nbStripes);
+	//svacc_03(out1, in1, in2, nbStripes);
+	svacc_04(out1, in1, in2, nbStripes);
 	//svscramble_01(out1, in2);
-#if 1
 	/* dump z0 */
 	asm volatile (
 		"st1d	z0.d, p7, [%[out]]\n\t"
@@ -2327,29 +2368,6 @@ void test_svacc(size_t nbStripes)
 	);
 	dump_bits("ACC", out, 512);
 	memset(out, 0, 64);
-#endif
-#if 0
-	/* save z1 */
-	asm volatile (
-		"st1d	z1.d, p7, [%[out]]\n\t"
-		"dsb	sy\n\t"
-		:
-		: [out] "r" (out)
-		: "z1", "p7", "memory"
-	);
-	dump_bits("INPUT", out, 512);
-#endif
-#if 0
-	/* save z2 into in2 */
-	asm volatile (
-		"st1d	z2.d, p7, [%[out]]\n\t"
-		"dsb	sy\n\t"
-		:
-		: [out] "r" (out)
-		: "z2", "p7", "memory"
-	);
-	dump_bits("SECRET", out, 512);
-#endif
 	return;
 }
 
@@ -2432,18 +2450,27 @@ void test_xxh3_consume_stripes(size_t nbStripes)
 			XXH3_scrambleAcc_scalar);
 	dump_bits("ACC", out1, 512);
 
-#if 0
-	nbStripesSoFarPtr[0] = 0;
+	return;
+}
+
+void test_xxh3_internal_loop(size_t nbStripes)
+{
+	size_t nbStripesPerBlock;
+	size_t secretLimit, secretSize;
+
+	nbStripesPerBlock = 4;
+	secretLimit = nbStripesPerBlock * XXH_SECRET_CONSUME_RATE;
+	secretSize = secretLimit + XXH_STRIPE_LEN;
+
+	printf("Test in %s\n", __func__);
 	set_buf(in1, 0x55, 1024);
 	init_buf(in2, 1024);
 	clear_buf(out1, 1024);
-	XXH3_accumulate((xxh_u64*)out1, in1, in2, nbStripes,
-			XXH3_accumulate_512_scalar);
-	//XXH3_scrambleAcc_scalar(out1, in2);
-	dump_bits("ACC", out1, 512);
-#endif
 
-	return;
+	XXH3_hashLong_internal_loop(out1, in1, 1024, in2, secretSize,
+				XXH3_accumulate_512_scalar,
+				XXH3_scrambleAcc_scalar);
+	dump_bits("ACC", out1, 512);
 }
 
 void empty_accum( void* XXH_RESTRICT acc,
@@ -2635,9 +2662,10 @@ int main(int argc, char **argv)
 {
 	int op, flag_perf = 0;
 
-	test_svacc(31);
+	test_svacc(8);
+	test_xxh3_internal_loop(8);
+	//test_xxh3_consume_stripes(31);
 	//test_xxh3_accum(8);
-	test_xxh3_consume_stripes(31);
 	//test_accum("svmad_05", svmad_05, 1024);
 	//test_xxh3_scramble(1024);
 	return 0;
