@@ -4463,6 +4463,9 @@ extern void XXH3_aarch64_sve_init_accum(void);
 extern void XXH3_aarch64_sve_internal_loop(xxh_u64* XXH_RESTRICT,
                       const xxh_u8* XXH_RESTRICT, size_t,
                       const xxh_u8* XXH_RESTRICT, size_t);
+extern void XXH3_aarch64_sve_internal_loop2(xxh_u64* XXH_RESTRICT,
+			const xxh_u8* XXH_RESTRICT, size_t,
+			const xxh_u8* XXH_RESTRICT, size_t);
 
 #define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
 XXH_FORCE_INLINE void
@@ -4482,9 +4485,10 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
 	}
 #endif
 	/* load acc into z0 */
-	XXH3_aarch64_sve_init_acc(acc);
-	XXH3_aarch64_sve_init_accum();
-	XXH3_aarch64_sve_internal_loop(acc, input, len, secret, secretSize);
+	//XXH3_aarch64_sve_init_acc(acc);
+	//XXH3_aarch64_sve_init_accum();
+	//XXH3_aarch64_sve_internal_loop(acc, input, len, secret, secretSize);
+	XXH3_aarch64_sve_internal_loop2(acc, input, len, secret, secretSize);
 	XXH3_aarch64_sve_deinit_acc(acc);
 	(void)f_acc512;
 	(void)f_scramble;
