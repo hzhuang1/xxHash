@@ -146,8 +146,6 @@ ENTRY (XXH3_aarch64_sve_scramble)
 	ret
 END (XXH3_aarch64_sve_scramble)
 
-address_of_xxh3_prime_1:	.dword	xxh3_prime_1
-
 /*
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *		    x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit),
@@ -265,6 +263,8 @@ ENTRY (XXH3_aarch64_sve_internal_loop2)
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
 	mov	x29, sp
+	addvl	sp, sp, #-1
+	str	z8, [sp]	// save z8
 
 	/* save input parameters */
 	mov	x13, x1		// save input into x13
@@ -307,6 +307,7 @@ ENTRY (XXH3_aarch64_sve_internal_loop2)
 	add	x1, x1, x13	// x1: input + n * block_len
 	mov	x2, x15		// x2: secret
 	mov	x3, x5		// x3: nbStripesPerBlock
+	#bl	XXH3_aarch64_sve_accumulate
 	/* start accumulate function */
 	mov	x10, xzr
 	cmp	x10, x3
@@ -447,9 +448,13 @@ ENTRY (XXH3_aarch64_sve_internal_loop2)
 	// always store acc in z0
 	mov	z0.d, z1.d
 	/* end acc512 function */
-	//st1d	z0.d, p7, [x0]
+	st1d	z0.d, p7, [x0]
+	ldr	z8, [sp]
+	addvl	sp, sp, #1
 	ldp	x19, x20, [sp, #16]
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
 	ret
 END (XXH3_aarch64_sve_internal_loop2)
+
+address_of_xxh3_prime_1:	.dword	xxh3_prime_1

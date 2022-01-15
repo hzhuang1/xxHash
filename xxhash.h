@@ -4475,21 +4475,12 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
                             XXH3_f_accumulate_512 f_acc512,
                             XXH3_f_scrambleAcc f_scramble)
 {
-#if 0
-	{
-		int i;
-		printf("%s acc:", __func__);
-		for (i = 0; i < 64; i++)
-			printf("%x-", *((unsigned char *)acc + i));
-		printf("\n");
-	}
-#endif
 	/* load acc into z0 */
 	//XXH3_aarch64_sve_init_acc(acc);
 	//XXH3_aarch64_sve_init_accum();
 	//XXH3_aarch64_sve_internal_loop(acc, input, len, secret, secretSize);
+	//XXH3_aarch64_sve_deinit_acc(acc);
 	XXH3_aarch64_sve_internal_loop2(acc, input, len, secret, secretSize);
-	XXH3_aarch64_sve_deinit_acc(acc);
 	(void)f_acc512;
 	(void)f_scramble;
 }
@@ -4509,7 +4500,6 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
 
     XXH_ASSERT(secretSize >= XXH3_SECRET_SIZE_MIN);
 
-printf("nb_blocks:%d\n", nb_blocks);
     for (n = 0; n < nb_blocks; n++) {
         XXH3_accumulate(acc, input + n*block_len, secret, nbStripesPerBlock, f_acc512);
         f_scramble(acc, secret + secretSize - XXH_STRIPE_LEN);
