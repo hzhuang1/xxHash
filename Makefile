@@ -368,6 +368,7 @@ cppcheck:  ## check C source files using $(CPPCHECK) static analyzer
 	@echo ---- static analyzer - $(CPPCHECK) ----
 	$(CPPCHECK) . --force --enable=warning,portability,performance,style --error-exitcode=1 > /dev/null
 
+ifeq ($(AARCH64_DISPATCH),1)
 .PHONY: namespaceTest
 namespaceTest:  ## ensure XXH_NAMESPACE redefines all public symbols
 	$(CC) -c xxhash.c
@@ -375,6 +376,14 @@ namespaceTest:  ## ensure XXH_NAMESPACE redefines all public symbols
 	$(CC) $(FLAGS) -o xxh_aarch64dispatch.o -c xxh_aarch64dispatch.S
 	$(CC) xxhash.o xxhash2.o $(XXHSUM_SPLIT_SRCS)  xxh_aarch64dispatch.o -o xxhsum2  # will fail if one namespace missing (symbol collision)
 	$(RM) *.o xxhsum2  # clean
+else
+.PHONY: namespaceTest
+namespaceTest:  ## ensure XXH_NAMESPACE redefines all public symbols
+	$(CC) -c xxhash.c
+	$(CC) -DXXH_NAMESPACE=TEST_ -c xxhash.c -o xxhash2.o
+	$(CC) xxhash.o xxhash2.o $(XXHSUM_SPLIT_SRCS)  -o xxhsum2  # will fail if one namespace missing (symbol collision)
+	$(RM) *.o xxhsum2  # clean
+endif
 
 MAN = $(XXHSUM_SRC_DIR)/xxhsum.1
 MD2ROFF ?= ronn

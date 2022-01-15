@@ -2823,6 +2823,11 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
     XXH_VSX    = 5,  /*!< VSX and ZVector for POWER8/z13 (64-bit) */
     XXH_SVE    = 6,  /*!< SVE for ARMv8-A and ARMv9-A */
 };
+
+enum XXH_IMPL_TYPE {
+    XXH_IMPL_C        = 0,
+    XXH_IMPL_ASSEMBLY = 1,
+};
 /*!
  * @ingroup tuning
  * @brief Selects the minimum alignment for XXH3's accumulators.
@@ -2844,6 +2849,13 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
 #  define XXH_NEON   4
 #  define XXH_VSX    5
 #  define XXH_SVE    6
+
+#  define XXH_IMPL_C         0
+#  define XXH_IMPL_ASSEMBLY  1
+#endif
+
+#ifndef XXH_IMPL
+#  define XXH_IMPL   XXH_IMPL_C
 #endif
 
 #ifndef XXH_VECTOR    /* can be defined on command line */
@@ -4456,7 +4468,7 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
     }
 }
 
-#if 1
+#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
 extern void XXH3_aarch64_sve_init_acc(xxh_u64* XXH_RESTRICT);
 extern void XXH3_aarch64_sve_deinit_acc(xxh_u64* XXH_RESTRICT);
 extern void XXH3_aarch64_sve_init_accum(void);

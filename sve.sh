@@ -1,8 +1,9 @@
 #!/bin/bash -e
 CLANG13_PATH=/opt/toolchain/clang+llvm-13.0.0-aarch64-linux-gnu/bin/
-OPTION="clang13+sve+arch"
+#OPTION="clang13+sve+arch+asm"
+#OPTION="clang13+sve+arch"
 #OPTION="clang13+neon+arch"
-#OPTION="clang13+scalar+arch"
+OPTION="clang13+scalar+arch"
 #OPTION="clang13+sve"
 #OPTION="clang13+scalar"
 #OPTION="gcc11+sve+arch"
@@ -17,65 +18,73 @@ WORKSPACE=$PWD
 
 check_option() {
 	case $OPTION in
+	"clang13+sve+arch+asm")
+		export PATH=$PATH:$CLANG13_PATH
+		export CC=clang
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE -DXXH_IMPL=XXH_IMPL_ASSEMBLY"
+		export CFLAGS="-O3 -march=armv8-a+sve -fPIC -DXXH_IMPL=XXH_IMPL_ASSEMBLY"
+		export AARCH64_DISPATCH=1
+		;;
 	"clang13+sve+arch")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=clang
-		export CPP_FLAGS=XXH_VECTOR=XXH_SVE
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
 		export CFLAGS="-O3 -march=armv8-a+sve -fPIC"
+		export AARCH64_DISPATCH=1
 		;;
 	"clang13+neon+arch")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=clang
-		export CPP_FLAGS=XXH_VECTOR=XXH_NEON
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
 		export CFLAGS="-O3 -march=armv8-a+simd -fPIC"
 		;;
 	"clang13+scalar+arch")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=clang
-		export CPP_FLAGS=XXH_VECTOR=XXH_SCALAR
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
 		export CFLAGS="-O3 -march=armv8-a+nosimd -fPIC"
 		;;
 	"clang13+sve")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=clang
-		export CPP_FLAGS=XXH_VECTOR=XXH_SVE
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
 		export CFLAGS="-O3 -fPIC"
 		;;
 	"clang13+scalar")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=clang
-		export CPP_FLAGS=XXH_VECTOR=XXH_SCALAR
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
 		export CFLAGS="-O3 -fPIC"
 		;;
 	"gcc11+sve+arch")
 		export CC=gcc
-		export CPP_FLAGS=XXH_VECTOR=XXH_SVE
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
 		export CFLAGS="-O3 -march=armv8-a+sve -fPIC"
 		;;
 	"gcc11+neon+arch")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=gcc
-		export CPP_FLAGS=XXH_VECTOR=XXH_NEON
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
 		export CFLAGS="-O3 -march=armv8-a+simd -fPIC"
 		;;
 	"gcc11+scalar+arch")
 		export CC=gcc
-		export CPP_FLAGS=XXH_VECTOR=XXH_SCALAR
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
 		export CFLAGS="-O3 -march=armv8-a+nosimd -fPIC"
 		;;
 	"gcc11+sve")
 		export CC=gcc
-		export CPP_FLAGS=XXH_VECTOR=XXH_SVE
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
 		export CFLAGS="-O3 -fPIC"
 		;;
 	"gcc11+neon")
 		export CC=gcc
-		export CPP_FLAGS=XXH_VECTOR=XXH_NEON
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
 		export CFLAGS="-O3 -fPIC"
 		;;
 	"gcc11+scalar")
 		export CC=gcc
-		export CPP_FLAGS=XXH_VECTOR=XXH_SCALAR
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
 		export CFLAGS="-O3 -fPIC"
 		;;
 	esac
@@ -84,7 +93,7 @@ check_option() {
 build_xxhash() {
 	cd $WORKSPACE
 	make clean
-	make AARCH64_DISPATCH=1 test
+	make test
 }
 
 build_bench() {
@@ -95,7 +104,8 @@ build_bench() {
 }
 
 run_bench() {
-	./benchHash --mins=2 --maxs=2 --minl=9 --maxl=12
+	#./benchHash --mins=2 --maxs=2 --minl=9 --maxl=12
+	./benchHash --mins=2 --maxs=2
 }
 
 build_debug() {

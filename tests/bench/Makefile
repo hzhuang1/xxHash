@@ -36,9 +36,11 @@ CXXFLAGS ?= -O3
 LDFLAGS  += $(MOREFLAGS)
 
 
-OBJ_LIST  = main.o bhDisplay.o benchHash.o benchfn.o timefn.o \
-	    xxh_aarch64dispatch.o
+OBJ_LIST  = main.o bhDisplay.o benchHash.o benchfn.o timefn.o
+ifeq ($(AARCH64_DISPATCH),1)
+OBJ_LIST += xxh_aarch64dispatch.o
 CFLAGS	+= -march=armv8-a+sve
+endif
 
 
 default: benchHash
@@ -65,8 +67,10 @@ bhDisplay.o: bhDisplay.h benchHash.h
 
 benchHash.o: benchHash.h
 
+ifeq ($(AARCH64_DISPATCH),1)
 xxh_aarch64dispatch.o: xxh_aarch64dispatch.S
 	$(CC) $(CFLAGS) -o xxh_aarch64dispatch.o -c xxh_aarch64dispatch.S
+endif
 
 clean:
 	$(RM) *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
