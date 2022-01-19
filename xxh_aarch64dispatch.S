@@ -94,6 +94,24 @@ ENTRY (XXH3_aarch64_sve128_deinit_acc)
 	ret
 END (XXH3_aarch64_sve128_deinit_acc)
 
+ENTRY (XXH3_aarch64_sve256_init_acc)
+	ptrue	p7.d
+	addvl	sp, sp, #-5
+	ldr	x10, address_of_xxh3_prime_1
+	st1d	{z8.d}, p7, [sp]		// save z8
+	st1d	{z9.d}, p7, [sp, #1, MUL VL]	// save z9
+	st1d	{z10.d}, p7, [sp, #2, MUL VL]	// save z10
+	st1d	{z11.d}, p7, [sp, #3, MUL VL]	// save z11
+	st1d	{z12.d}, p7, [sp, #4, MUL VL]	// save z12
+	ldr	x12, [x10]
+	ld1d	{z9.d}, p7/z, [x0]
+	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
+	ld1d	{z11.d}, p7/z, [x0, #2, MUL VL]
+	ld1d	{z12.d}, p7/z, [x0, #3, MUL VL]
+	mov	z8.d, x12			// save XXH3_PRIME_1
+	ret
+END (XXH3_aarch64_sve256_init_acc)
+
 /*
  * Calculate index [1,0,3,2,...] & save it in register z7.
  * Input Registers: p7 (true for D)
@@ -805,7 +823,254 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	ret
 END (XXH3_aarch64_sve128_internal_loop)
 
-ENTRY (XXH3_aarch64_sve_internal_loop2)
+ENTRY (XXH3_aarch64_sve256_internal_loop)
+	stp	x29, x30, [sp, #-48]!
+	stp	x19, x20, [sp, #16]
+	stp	x21, x22, [sp, #32]
+	addvl	sp, sp, #-4
+	mov	x29, sp
+	ptrue	p7.d
+	ldr	x10, address_of_xxh3_prime_1
+	st1d	{z8.d}, p7, [sp, #1, MUL VL]	// save z8
+	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
+	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
+
+	/* save input parameters */
+	mov	x13, x1		// save input into x13
+	mov	x14, x2		// save len into x14
+	mov	x15, x3		// save secret into x15
+	mov	x19, x4		// save secretSize into x19
+	ldr	x12, [x10]
+	ld1d	{z9.d}, p7/z, [x0]
+	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
+	mov	z8.d, x12			// save XXH3_PRIME_1
+
+	/*
+	 * prepare index
+	 * p7 and z7 are reserved to use.
+	 */
+	mov	z1.d, #2
+	pfalse	p1.b
+	index	z7.d, #1, #1
+	trn1	p1.d, p1.d, p7.d
+	sub	z7.d, p1/m, z7.d, z1.d
+
+	/*
+	 * nbStripesPerBlock =
+	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
+	 */
+	sub	x5, x4, #64
+	lsr	x5, x5, #3	// x5: nbStripesPerBlock
+	/* block_len = XXH_STRIPE_LEN * nbStripesPerBlock; */
+	lsl	x6, x5, #6	// x6: block_len
+	sub	x7, x2, #1	// x7: len - 1
+	/* nb_blocks = (len - 1) / block_len; */
+	udiv	x20, x7, x6	// x20: nb_blocks
+	mov	x9, xzr		// x9: n
+	cmp	x9, x20
+	b.ge	1f
+0:
+	mul	x1, x6, x9	// x1: n * block_len
+	add	x1, x1, x13	// x1: input + n * block_len
+	mov	x2, x15		// x2: secret
+	mov	x3, x5		// x3: nbStripesPerBlock
+	#bl	XXH3_aarch64_sve256_accumulate
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	11f
+10:
+	#bl	XXH3_aarch64_sve256_acc512
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	// make z0 loaded outside
+	mov	z0.d, z9.d
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	mov	z9.d, z1.d
+
+	mov	z0.d, z10.d
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	mov	z10.d, z1.d
+
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	10b
+11:
+
+	/* secret + secretSize - XXH_STRIPE_LEN */
+	add	x1, x15, x4
+	sub	x1, x1, #64
+	#bl	XXH3_aarch64_sve256_scramble
+	ld1d	{z1.d}, p7/z, [x1]
+	eor	z1.d, z9.d, z1.d
+	lsr	z2.d, z9.d, #47
+	eor	z9.d, z1.d, z2.d
+	mul	z9.d, p7/m, z9.d, z8.d
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	eor	z1.d, z10.d, z1.d
+	lsr	z2.d, z10.d, #47
+	eor	z10.d, z1.d, z2.d
+	mul	z10.d, p7/m, z10.d, z8.d
+	add	x9, x9, #1
+	cmp	x9, x20
+	b.lt	0b
+1:
+	/*
+	 * nbStripes =
+	 * ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
+	 */
+	mul	x9, x6, x20	// overwrite x9 (n)
+	sub	x7, x7, x9
+	lsr	x3, x7, #6	// x3: nbStripes
+	mov	x2, x15		// x2: secret
+	add	x1, x13, x9	// x1: input
+	#bl	XXH3_aarch64_sve256_accumulate
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	21f
+20:
+	#bl	XXH3_aarch64_sve256_acc512
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	// make z0 loaded outside
+	mov	z0.d, z9.d
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	mov	z9.d, z1.d
+
+	mov	z0.d, z10.d
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	mov	z10.d, z1.d
+
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	20b
+21:
+	/* p = input + len - XXH_STRIPE_LEN; */
+	add	x1, x13, x14
+	sub	x1, x1, #64	// x1: p
+	/* secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START); */
+	add	x2, x15, x19
+	sub	x2, x2, #64
+	sub	x2, x2, #7
+	#bl	XXH3_aarch64_sve256_acc512
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	// make z0 loaded outside
+	mov	z0.d, z9.d
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	mov	z9.d, z1.d
+
+	mov	z0.d, z10.d
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z0.d
+	// acc = mixed_lo + swapped
+	add	z1.d, p7/m, z1.d, z5.d
+	mov	z10.d, z1.d
+
+	st1d	{z9.d}, p7, [x0]
+	st1d	{z10.d}, p7, [x0, #1, MUL VL]
+
+	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
+	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
+	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
+	addvl	sp, sp, #4
+	ldp	x19, x20, [sp, #16]
+	ldp	x21, x22, [sp, #32]
+	ldp	x29, x30, [sp], #48
+	ret
+END (XXH3_aarch64_sve256_internal_loop)
+
+ENTRY (XXH3_aarch64_sve512_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
@@ -1002,6 +1267,6 @@ ENTRY (XXH3_aarch64_sve_internal_loop2)
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
 	ret
-END (XXH3_aarch64_sve_internal_loop2)
+END (XXH3_aarch64_sve512_internal_loop)
 
 address_of_xxh3_prime_1:	.dword	xxh3_prime_1
