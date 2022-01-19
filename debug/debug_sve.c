@@ -70,6 +70,18 @@ extern void XXH3_aarch64_sve_internal_loop(void* XXH_RESTRICT,
 				const void* XXH_RESTRICT, size_t,
 				const void* XXH_RESTRICT, size_t);
 
+extern void XXH3_aarch64_sve128_init_acc(void* XXH_RESTRICT);
+extern void XXH3_aarch64_sve128_deinit_acc(void* XXH_RESTRICT);
+extern void XXH3_aarch64_sve128_acc512(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT,
+				const void* XXH_RESTRICT);
+extern void XXH3_aarch64_sve128_accumulate(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT,
+				const void* XXH_RESTRICT,
+				size_t);
+extern void XXH3_aarch64_sve128_scramble(void* XXH_RESTRICT,
+				const void* XXH_RESTRICT);
+
 static unsigned char in1[128] __attribute__((aligned(256)));
 static unsigned char in2[128] __attribute__((aligned(256)));
 static unsigned char out1[128] __attribute__((aligned(256)));
@@ -2318,6 +2330,19 @@ int svacc_04(void* XXH_RESTRICT acc,
 					secret, secretSize);
 }
 
+int svacc_05(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret,
+	size_t nbStripes)
+{
+	XXH3_aarch64_sve128_init_acc(acc);
+	XXH3_aarch64_sve_init_accum();
+	//XXH3_aarch64_sve128_acc512(acc, input, secret);
+	//XXH3_aarch64_sve128_accumulate(acc, input, secret, nbStripes);
+	XXH3_aarch64_sve128_scramble(acc, secret);
+	XXH3_aarch64_sve128_deinit_acc(acc);
+}
+
 int svscramble_01(void* XXH_RESTRICT acc,
 		const void* XXH_RESTRICT secret)
 {
@@ -2347,8 +2372,6 @@ int svscramble_01(void* XXH_RESTRICT acc,
 void test_svacc(size_t nbStripes)
 {
 	int i;
-	unsigned char vout[64];
-	void *out = vout;
 	int bytes;
 
 	set_buf(in1, 0x55, 1024);
@@ -2357,17 +2380,10 @@ void test_svacc(size_t nbStripes)
 	//svacc_01(out1, in1, in2);
 	//svacc_02(out1, in1, in2, nbStripes);
 	//svacc_03(out1, in1, in2, nbStripes);
-	svacc_04(out1, in1, in2, nbStripes);
+	//svacc_04(out1, in1, in2, nbStripes);
 	//svscramble_01(out1, in2);
-	/* dump z0 */
-	asm volatile (
-		"st1d	z0.d, p7, [%[out]]\n\t"
-		:
-		: [out] "r" (out)
-		: "z0", "p7", "memory"
-	);
-	dump_bits("ACC", out, 512);
-	memset(out, 0, 64);
+	svacc_05(out1, in1, in2, nbStripes);
+	dump_bits("ACC", out1, 512);
 	return;
 }
 
@@ -2663,11 +2679,11 @@ int main(int argc, char **argv)
 	int op, flag_perf = 0;
 
 	test_svacc(8);
-	test_xxh3_internal_loop(8);
+	//test_xxh3_internal_loop(8);
 	//test_xxh3_consume_stripes(31);
 	//test_xxh3_accum(8);
 	//test_accum("svmad_05", svmad_05, 1024);
-	//test_xxh3_scramble(1024);
+	test_xxh3_scramble(1024);
 	return 0;
 	while ((op = getopt(argc, argv, ":p")) != -1) {
 		switch (op) {
