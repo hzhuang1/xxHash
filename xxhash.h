@@ -4506,7 +4506,7 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
 	case 4:
 		XXH3_aarch64_sve256_internal_loop(acc, input, len, secret, secretSize);
 		break;
-	case 8:
+	default:
 		XXH3_aarch64_sve512_internal_loop(acc, input, len, secret, secretSize);
 		break;
 	}

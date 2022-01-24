@@ -1092,7 +1092,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	 * prepare index
 	 * p7 and z7 are reserved to use.
 	 */
-	ptrue	p7.d
+	ptrue	p7.d, VL8
 	mov	z1.d, #2
 	pfalse	p1.b
 	index	z7.d, #1, #1
