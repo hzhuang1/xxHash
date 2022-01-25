@@ -843,7 +843,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	ldr	x12, [x10]
 	ld1d	{z9.d}, p7/z, [x0]
 	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
-	mov	z8.d, x12			// save XXH3_PRIME_1
+	mov	z8.d, x12	// save XXH3_PRIME_1
 
 	/*
 	 * prepare index
@@ -1085,7 +1085,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	mov	x19, x4		// save secretSize into x19
 	ldr	x10, address_of_xxh3_prime_1
 	ldr	x12, [x10]
-	mov	x11, xzr
 	mov	z8.d, x12	// save XXH3_PRIME_1 into z8
 
 	/*
@@ -1099,7 +1098,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	trn1	p1.d, p1.d, p7.d
 	sub	z7.d, p1/m, z7.d, z1.d
 
-	ld1d	{z0.d}, p7/z, [x0, x11, lsl #3]
+	ld1d	{z0.d}, p7/z, [x0]
 	/*
 	 * nbStripesPerBlock =
 	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
@@ -1111,7 +1110,11 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	sub	x7, x2, #1	// x7: len - 1
 	/* nb_blocks = (len - 1) / block_len; */
 	udiv	x20, x7, x6	// x20: nb_blocks
+	mov	w12, #0xffffffff // x12: -1
 	mov	x9, xzr		// x9: n
+	// set -1 in z3
+	mov	z3.d, x12
+	mov	z4.d, #32
 	cmp	x9, x20
 	b.ge	1f
 0:
@@ -1127,15 +1130,9 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 10:
 	#bl	XXH3_aarch64_sve_acc512
 	/* start acc512 function */
-	mov	w12, #0xffffffff
-	mov	x11, xzr
-	// set -1 in z4
-	mov	z3.d, x12
-	mov	z4.d, #32
 	// make z0 loaded outside
-	//ld1d	{z0.d}, p7/z, [x0, x11, lsl #3]
-	ld1d	{z1.d}, p7/z, [x1, x11, lsl #3]
-	ld1d	{z2.d}, p7/z, [x2, x11, lsl #3]
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
 	// swapped = SWAP(input)
 	tbl	z5.d, {z1.d}, z7.d
 	// mixed = input EOR secret
@@ -1165,11 +1162,10 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	sub	x1, x1, #64
 	#bl	XXH3_aarch64_sve_scramble
 	/* start scramble function */
-	mov	x11, xzr
-	ld1d	{z1.d}, p7/z, [x1, x11, lsl #3]
+	ld1d	{z1.d}, p7/z, [x1]
 	eor	z1.d, z0.d, z1.d
-	lsr	z2.d, z0.d, #47
-	eor	z0.d, z1.d, z2.d
+	lsr	z5.d, z0.d, #47
+	eor	z0.d, z1.d, z5.d
 	mul	z0.d, p7/m, z0.d, z8.d
 	/* end scramble function */
 	add	x9, x9, #1
@@ -1193,15 +1189,10 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 20:
 	#bl	XXH3_aarch64_sve_acc512
 	/* start acc512 function */
-	mov	w12, #0xffffffff
-	mov	x11, xzr
-	// set -1 in z4
-	mov	z3.d, x12
-	mov	z4.d, #32
+	// z3 and z4 are initialized already
 	// make z0 loaded outside
-	//ld1d	{z0.d}, p7/z, [x0, x11, lsl #3]
-	ld1d	{z1.d}, p7/z, [x1, x11, lsl #3]
-	ld1d	{z2.d}, p7/z, [x2, x11, lsl #3]
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
 	// swapped = SWAP(input)
 	tbl	z5.d, {z1.d}, z7.d
 	// mixed = input EOR secret
@@ -1235,15 +1226,9 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	sub	x2, x2, #7
 	#bl	XXH3_aarch64_sve_acc512
 	/* start acc512 function */
-	mov	w12, #0xffffffff
-	mov	x11, xzr
-	// set -1 in z4
-	mov	z3.d, x12
-	mov	z4.d, #32
 	// make z0 loaded outside
-	//ld1d	{z0.d}, p7/z, [x0, x11, lsl #3]
-	ld1d	{z1.d}, p7/z, [x1, x11, lsl #3]
-	ld1d	{z2.d}, p7/z, [x2, x11, lsl #3]
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
 	// swapped = SWAP(input)
 	tbl	z5.d, {z1.d}, z7.d
 	// mixed = input EOR secret
