@@ -4883,7 +4883,7 @@ XXH3_64bits_reset_withSeed(XXH3_state_t* statePtr, XXH64_hash_t seed)
 /* Note : when XXH3_consumeStripes() is invoked,
  * there must be a guarantee that at least one more byte must be consumed from input
  * so that the function can blindly consume all stripes using the "normal" secret segment */
-#if defined(XXH_AARCH64_DISPATCH)
+#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
 XXH_FORCE_INLINE void
 XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     size_t* XXH_RESTRICT nbStripesSoFarPtr, size_t nbStripesPerBlock,
@@ -4898,6 +4898,7 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
 					 nbStripesPerBlock,
 					 input, nbStripes,
 					 secret, secretLimit);
+	XXH3_aarch64_sve_deinit_acc(acc);
 }
 
 #else
