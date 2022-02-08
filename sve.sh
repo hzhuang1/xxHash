@@ -1,9 +1,9 @@
 #!/bin/bash -e
 CLANG13_PATH=/opt/toolchain/clang+llvm-13.0.0-aarch64-linux-gnu/bin/
-#OPTION="clang13+sve+arch+asm"
+OPTION="clang13+sve+arch+asm"
 #OPTION="clang13+sve+arch"
 #OPTION="clang13+neon+arch"
-OPTION="clang13+scalar+arch"
+#OPTION="clang13+scalar+arch"
 #OPTION="clang13+sve"
 #OPTION="clang13+scalar"
 #OPTION="gcc11+sve+arch"

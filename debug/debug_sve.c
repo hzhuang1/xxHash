@@ -2149,15 +2149,8 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                       XXH3_f_accumulate_512 f_acc512)
 {
     size_t n;
-printf("#%s, nbStripes:%d\n", __func__, nbStripes);
     for (n = 0; n < nbStripes; n++ ) {
         const xxh_u8* const in = input + n*XXH_STRIPE_LEN;
-/*
-printf("#%s, n:%d, in off:%d, secret off:%d\n",
-	__func__, n,
-	n*XXH_STRIPE_LEN,
-	n*XXH_SECRET_CONSUME_RATE);
-*/
         //XXH_PREFETCH(in + XXH_PREFETCH_DIST);
         f_acc512(acc,
                  in,
@@ -2175,18 +2168,15 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
 {
     XXH_ASSERT(nbStripes <= nbStripesPerBlock);  /* can handle max 1 scramble per invocation */
     XXH_ASSERT(*nbStripesSoFarPtr < nbStripesPerBlock);
-printf("nbStripesPerBlock:%d, *ptr:%d, EndofBlock:%d\n", nbStripesPerBlock, *nbStripesSoFarPtr, nbStripesPerBlock - *nbStripesSoFarPtr);
     if (nbStripesPerBlock - *nbStripesSoFarPtr <= nbStripes) {
         /* need a scrambling operation */
         size_t const nbStripesToEndofBlock = nbStripesPerBlock - *nbStripesSoFarPtr;
         size_t const nbStripesAfterBlock = nbStripes - nbStripesToEndofBlock;
-printf("condition#1, sofar:0x%x, endofblock:0x%x\n", nbStripesSoFarPtr[0], nbStripesToEndofBlock);
         XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripesToEndofBlock, f_acc512);
         f_scramble(acc, secret + secretLimit);
         XXH3_accumulate(acc, input + nbStripesToEndofBlock * XXH_STRIPE_LEN, secret, nbStripesAfterBlock, f_acc512);
         *nbStripesSoFarPtr = nbStripesAfterBlock;
     } else {
-printf("condition#2\n");
         XXH3_accumulate(acc, input, secret + nbStripesSoFarPtr[0] * XXH_SECRET_CONSUME_RATE, nbStripes, f_acc512);
         *nbStripesSoFarPtr += nbStripes;
     }
@@ -2207,8 +2197,6 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
 
     XXH_ASSERT(secretSize >= XXH3_SECRET_SIZE_MIN);
 
-	printf("len:%d, block_len:%d, nbStripesPerBlock:%d\n", len, block_len, nbStripesPerBlock);
-	printf("n:%d, n*block_len:%d, nb_blocks:%d\n", n, n*block_len, nb_blocks);
     for (n = 0; n < nb_blocks; n++) {
         XXH3_accumulate(acc, input + n*block_len, secret, nbStripesPerBlock, f_acc512);
         f_scramble(acc, secret + secretSize - XXH_STRIPE_LEN);
@@ -2343,6 +2331,31 @@ int svacc_05(void* XXH_RESTRICT acc,
 	XXH3_aarch64_sve128_deinit_acc(acc);
 }
 
+int svacc_06(void* XXH_RESTRICT acc,
+	const void* XXH_RESTRICT input,
+	const void* XXH_RESTRICT secret,
+	size_t nbStripes)
+{
+	size_t nbStripesPerBlock, secretLimit;
+	size_t nbStripesSoFarPtr[2];
+
+	nbStripesPerBlock = 8;
+	secretLimit = nbStripesPerBlock * XXH_SECRET_CONSUME_RATE;
+	nbStripesSoFarPtr[0] = 1;
+
+#if 1
+	XXH3_aarch64_sve256_consume_stripes(acc, nbStripesSoFarPtr,
+					nbStripesPerBlock,
+					input, nbStripes,
+					secret, secretLimit);
+#else
+	XXH3_aarch64_sve512_consume_stripes(acc, nbStripesSoFarPtr,
+					nbStripesPerBlock,
+					input, nbStripes,
+					secret, secretLimit);
+#endif
+}
+
 int svscramble_01(void* XXH_RESTRICT acc,
 		const void* XXH_RESTRICT secret)
 {
@@ -2382,7 +2395,8 @@ void test_svacc(size_t nbStripes)
 	//svacc_03(out1, in1, in2, nbStripes);
 	//svacc_04(out1, in1, in2, nbStripes);
 	//svscramble_01(out1, in2);
-	svacc_05(out1, in1, in2, nbStripes);
+	//svacc_05(out1, in1, in2, nbStripes);
+	svacc_06(out1, in1, in2, nbStripes);
 	dump_bits("ACC", out1, 512);
 	return;
 }
@@ -2680,6 +2694,7 @@ int main(int argc, char **argv)
 
 	test_svacc(8);
 	//test_xxh3_internal_loop(8);
+	test_xxh3_consume_stripes(8);
 	//test_xxh3_consume_stripes(31);
 	//test_xxh3_accum(8);
 	//test_accum("svmad_05", svmad_05, 1024);
