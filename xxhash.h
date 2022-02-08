@@ -4484,6 +4484,15 @@ extern void XXH3_aarch64_sve256_internal_loop(xxh_u64* XXH_RESTRICT,
 extern void XXH3_aarch64_sve512_internal_loop(xxh_u64* XXH_RESTRICT,
 			const xxh_u8* XXH_RESTRICT, size_t,
 			const xxh_u8* XXH_RESTRICT, size_t);
+extern void XXH3_aarch64_sve128_consume_stripes(xxh_u64*, size_t*, size_t,
+						const xxh_u8*, size_t,
+						const xxh_u8*, size_t);
+extern void XXH3_aarch64_sve256_consume_stripes(xxh_u64*, size_t*, size_t,
+						const xxh_u8*, size_t,
+						const xxh_u8*, size_t);
+extern void XXH3_aarch64_sve512_consume_stripes(xxh_u64*, size_t*, size_t,
+						const xxh_u8*, size_t,
+						const xxh_u8*, size_t);
 
 #define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
 XXH_FORCE_INLINE void
@@ -4884,6 +4893,7 @@ XXH3_64bits_reset_withSeed(XXH3_state_t* statePtr, XXH64_hash_t seed)
  * there must be a guarantee that at least one more byte must be consumed from input
  * so that the function can blindly consume all stripes using the "normal" secret segment */
 #if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+#include <stdio.h>
 XXH_FORCE_INLINE void
 XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     size_t* XXH_RESTRICT nbStripesSoFarPtr, size_t nbStripesPerBlock,
@@ -4892,6 +4902,7 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
                     XXH3_f_accumulate_512 f_acc512,
                     XXH3_f_scrambleAcc f_scramble)
 {
+#if 0
 	XXH3_aarch64_sve_init_acc(acc);
 	XXH3_aarch64_sve_init_accum();
 	XXH3_aarch64_sve_consume_stripes(acc, nbStripesSoFarPtr,
@@ -4899,6 +4910,30 @@ XXH3_consumeStripes(xxh_u64* XXH_RESTRICT acc,
 					 input, nbStripes,
 					 secret, secretLimit);
 	XXH3_aarch64_sve_deinit_acc(acc);
+#else
+	switch (svcntd()) {
+	case 2:
+		XXH3_aarch64_sve128_consume_stripes(acc, nbStripesSoFarPtr,
+						nbStripesPerBlock,
+						input, nbStripes,
+						secret, secretLimit);
+		break;
+	case 4:
+		XXH3_aarch64_sve256_consume_stripes(acc, nbStripesSoFarPtr,
+						nbStripesPerBlock,
+						input, nbStripes,
+						secret, secretLimit);
+		break;
+	default:
+		XXH3_aarch64_sve512_consume_stripes(acc, nbStripesSoFarPtr,
+						nbStripesPerBlock,
+						input, nbStripes,
+						secret, secretLimit);
+		break;
+	}
+	(void)f_acc512;
+	(void)f_scramble;
+#endif
 }
 
 #else
