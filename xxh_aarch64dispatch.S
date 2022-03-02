@@ -41,11 +41,10 @@ xxh3_prime_1:	.dword	0x9E3779B1U
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
- * Modified Registers: p1, p7, z0-z12, x1-x4, x6-x17
+ * Modified Registers: p1, p7, z0-z7, z16-z20, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	stp	x29, x30, [sp, #-16]!
-	addvl	sp, sp, #-6
 	mov	x29, sp
 	/*
 	 * prepare index
@@ -53,11 +52,6 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	 */
 	ptrue	p7.d
 	init_index
-
-	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
-	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
-	st1d	{z11.d}, p7, [sp, #4, MUL VL]	// save z11
-	st1d	{z12.d}, p7, [sp, #5, MUL VL]	// save z12
 
 	mov	x8, x1		// save nbStripeSoFarPtr to x8
 	mov	x9, x2		// save nbStripesPerBlock to x9
@@ -73,10 +67,10 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	mov	z3.d, x12
 	mov	z4.d, #32
 
-	ld1d	{z9.d}, p7/z, [x0]
-	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
-	ld1d	{z11.d}, p7/z, [x0, #2, MUL VL]
-	ld1d	{z12.d}, p7/z, [x0, #3, MUL VL]
+	ld1d	{z17.d}, p7/z, [x0]
+	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
+	ld1d	{z19.d}, p7/z, [x0, #2, MUL VL]
+	ld1d	{z20.d}, p7/z, [x0, #3, MUL VL]
 
 	ldr	x17, [x8]	// x17: nbStripesSoFarPtr[0]
 	subs	x7, x2, x17	// x7: nbStripesToEndofBlock
@@ -96,23 +90,23 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	/* start acc512 function */
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z11.d
-	mov	z11.d, z1.d
+	calc_acc512 z19.d
+	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z12.d
-	mov	z12.d, z1.d
+	calc_acc512 z20.d
+	mov	z20.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -125,13 +119,13 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	add	x1, x1, x16	// x1: secret + secretLimit
 	/* start scramble function */
 	ld1d	{z1.d}, p7/z, [x1]
-	calc_scram	z9.d
+	calc_scram	z17.d
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	calc_scram	z10.d
+	calc_scram	z18.d
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
-	calc_scram	z11.d
+	calc_scram	z19.d
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
-	calc_scram	z12.d
+	calc_scram	z20.d
 	/* end scramble function */
 	mov	x4, #64
 	madd	x1, x7, x4, x13	// x1: input + nbStripesToEndofBlock * XXH_STRIPE_LEN
@@ -146,23 +140,23 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	// z3 and z4 are initialized already
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z11.d
-	mov	z11.d, z1.d
+	calc_acc512 z19.d
+	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z12.d
-	mov	z12.d, z1.d
+	calc_acc512 z20.d
+	mov	z20.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -173,15 +167,10 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	/* end accumulate function */
 	str	x6, [x8]
 
-	st1d	{z9.d}, p7, [x0]
-	st1d	{z10.d}, p7, [x0, #1, MUL VL]
-	st1d	{z11.d}, p7, [x0, #2, MUL VL]
-	st1d	{z12.d}, p7, [x0, #3, MUL VL]
-	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
-	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
-	ld1d	{z11.d}, p7/z, [sp, #4, MUL VL]
-	ld1d	{z12.d}, p7/z, [sp, #5, MUL VL]
-	addvl	sp, sp, #6
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
+	st1d	{z19.d}, p7, [x0, #2, MUL VL]
+	st1d	{z20.d}, p7, [x0, #3, MUL VL]
 	ldp	x29, x30, [sp], #16
 	ret
 
@@ -197,23 +186,23 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	// z3 and z4 are initialized already
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z11.d
-	mov	z11.d, z1.d
+	calc_acc512 z19.d
+	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z12.d
-	mov	z12.d, z1.d
+	calc_acc512 z20.d
+	mov	z20.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -224,16 +213,11 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	/* end accumulate function */
 	add	x17, x17, x14
 	str	x17, [x8]
-	st1d	{z9.d}, p7, [x0]
-	st1d	{z10.d}, p7, [x0, #1, MUL VL]
-	st1d	{z11.d}, p7, [x0, #2, MUL VL]
-	st1d	{z12.d}, p7, [x0, #3, MUL VL]
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
+	st1d	{z19.d}, p7, [x0, #2, MUL VL]
+	st1d	{z20.d}, p7, [x0, #3, MUL VL]
 0:
-	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
-	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
-	ld1d	{z11.d}, p7/z, [sp, #4, MUL VL]
-	ld1d	{z12.d}, p7/z, [sp, #5, MUL VL]
-	addvl	sp, sp, #6
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve128_consume_stripes)
@@ -242,11 +226,10 @@ END (XXH3_aarch64_sve128_consume_stripes)
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
- * Modified Registers: p1, p7, z0-z12, x1-x4, x6-x17
+ * Modified Registers: p1, p7, z0-z7, z16-z18, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	stp	x29, x30, [sp, #-16]!
-	addvl	sp, sp, #-4
 	mov	x29, sp
 	/*
 	 * prepare index
@@ -254,9 +237,6 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	 */
 	ptrue	p7.d
 	init_index
-
-	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
-	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
 
 	mov	x8, x1		// save nbStripeSoFarPtr to x8
 	mov	x9, x2		// save nbStripesPerBlock to x9
@@ -272,8 +252,8 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	mov	z3.d, x12
 	mov	z4.d, #32
 
-	ld1d	{z9.d}, p7/z, [x0]
-	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
+	ld1d	{z17.d}, p7/z, [x0]
+	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
 
 	ldr	x17, [x8]	// x17: nbStripesSoFarPtr[0]
 	subs	x7, x2, x17	// x7: nbStripesToEndofBlock
@@ -294,13 +274,13 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	// make z0 loaded outside
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -313,9 +293,9 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	add	x1, x1, x16	// x1: secret + secretLimit
 	/* start scramble function */
 	ld1d	{z1.d}, p7/z, [x1]
-	calc_scram	z9.d
+	calc_scram	z17.d
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	calc_scram	z10.d
+	calc_scram	z18.d
 	/* end scramble function */
 	mov	x4, #64
 	madd	x1, x7, x4, x13	// x1: input + nbStripesToEndofBlock * XXH_STRIPE_LEN
@@ -330,13 +310,13 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	// z3 and z4 are initialized already
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -347,11 +327,8 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	/* end accumulate function */
 	str	x6, [x8]
 
-	st1d	{z9.d}, p7, [x0]
-	st1d	{z10.d}, p7, [x0, #1, MUL VL]
-	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
-	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
-	addvl	sp, sp, #4
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
 	ldp	x29, x30, [sp], #16
 	ret
 
@@ -367,13 +344,13 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	// z3 and z4 are initialized already
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -384,12 +361,9 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	/* end accumulate function */
 	add	x17, x17, x14
 	str	x17, [x8]
-	st1d	{z9.d}, p7, [x0]
-	st1d	{z10.d}, p7, [x0, #1, MUL VL]
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
 0:
-	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
-	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
-	addvl	sp, sp, #4
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve256_consume_stripes)
@@ -398,11 +372,10 @@ END (XXH3_aarch64_sve256_consume_stripes)
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
- * Modified Registers: p1, p7, z0-z12, x1-x4, x6-x17
+ * Modified Registers: p1, p7, z0-z7, z16, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	stp	x29, x30, [sp, #-16]!
-	addvl	sp, sp, #-1
 	mov	x29, sp
 
 	mov	x8, x1		// save nbStripeSoFarPtr to x8
@@ -491,7 +464,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	str	x6, [x8]
 
 	st1d	{z0.d}, p7, [x0]
-	addvl	sp, sp, #1
 	ldp	x29, x30, [sp], #16
 	ret
 
@@ -523,7 +495,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	str	x17, [x8]
 	st1d	{z0.d}, p7, [x0]
 0:
-	addvl	sp, sp, #1
 	ldp	x29, x30, [sp], #16
 	ret
 END (XXH3_aarch64_sve512_consume_stripes)
@@ -532,20 +503,15 @@ END (XXH3_aarch64_sve512_consume_stripes)
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
- * Modified Registers: p1, p7, z0-z12, x1-x4, x6-x17
+ * Modified Registers: p1, p7, z0-z7, z16-z20, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve128_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
-	addvl	sp, sp, #-6
 	mov	x29, sp
 	ptrue	p7.d
 	ldr	x10, address_of_xxh3_prime_1
-	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
-	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
-	st1d	{z11.d}, p7, [sp, #4, MUL VL]	// save z11
-	st1d	{z12.d}, p7, [sp, #5, MUL VL]	// save z12
 
 	/* save input parameters */
 	mov	x13, x1		// save input into x13
@@ -553,10 +519,10 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
 	ldr	x12, [x10]
-	ld1d	{z9.d}, p7/z, [x0]
-	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
-	ld1d	{z11.d}, p7/z, [x0, #2, MUL VL]
-	ld1d	{z12.d}, p7/z, [x0, #3, MUL VL]
+	ld1d	{z17.d}, p7/z, [x0]
+	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
+	ld1d	{z19.d}, p7/z, [x0, #2, MUL VL]
+	ld1d	{z20.d}, p7/z, [x0, #3, MUL VL]
 	mov	z16.d, x12			// save XXH3_PRIME_1
 
 	/*
@@ -594,23 +560,23 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	mov	z4.d, #32
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z11.d
-	mov	z11.d, z1.d
+	calc_acc512 z19.d
+	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z12.d
-	mov	z12.d, z1.d
+	calc_acc512 z20.d
+	mov	z20.d, z1.d
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -622,25 +588,25 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	add	x1, x15, x4
 	sub	x1, x1, #64
 	ld1d	{z1.d}, p7/z, [x1]
-	eor	z1.d, z9.d, z1.d
-	lsr	z2.d, z9.d, #47
-	eor	z9.d, z1.d, z2.d
-	mul	z9.d, p7/m, z9.d, z16.d
+	eor	z1.d, z17.d, z1.d
+	lsr	z2.d, z17.d, #47
+	eor	z17.d, z1.d, z2.d
+	mul	z17.d, p7/m, z17.d, z16.d
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	eor	z1.d, z10.d, z1.d
-	lsr	z2.d, z10.d, #47
-	eor	z10.d, z1.d, z2.d
-	mul	z10.d, p7/m, z10.d, z16.d
+	eor	z1.d, z18.d, z1.d
+	lsr	z2.d, z18.d, #47
+	eor	z18.d, z1.d, z2.d
+	mul	z18.d, p7/m, z18.d, z16.d
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
-	eor	z1.d, z11.d, z1.d
-	lsr	z2.d, z11.d, #47
-	eor	z11.d, z1.d, z2.d
-	mul	z11.d, p7/m, z11.d, z16.d
+	eor	z1.d, z19.d, z1.d
+	lsr	z2.d, z19.d, #47
+	eor	z19.d, z1.d, z2.d
+	mul	z19.d, p7/m, z19.d, z16.d
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
-	eor	z1.d, z12.d, z1.d
-	lsr	z2.d, z12.d, #47
-	eor	z12.d, z1.d, z2.d
-	mul	z12.d, p7/m, z12.d, z16.d
+	eor	z1.d, z20.d, z1.d
+	lsr	z2.d, z20.d, #47
+	eor	z20.d, z1.d, z2.d
+	mul	z20.d, p7/m, z20.d, z16.d
 	add	x9, x9, #1
 	cmp	x9, x20
 	b.lt	0b
@@ -664,23 +630,23 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	mov	z4.d, #32
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z11.d
-	mov	z11.d, z1.d
+	calc_acc512 z19.d
+	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z12.d
-	mov	z12.d, z1.d
+	calc_acc512 z20.d
+	mov	z20.d, z1.d
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -700,34 +666,29 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	mov	z4.d, #32
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z11.d
-	mov	z11.d, z1.d
+	calc_acc512 z19.d
+	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z12.d
-	mov	z12.d, z1.d
+	calc_acc512 z20.d
+	mov	z20.d, z1.d
 
-	st1d	{z9.d}, p7, [x0]
-	st1d	{z10.d}, p7, [x0, #1, MUL VL]
-	st1d	{z11.d}, p7, [x0, #2, MUL VL]
-	st1d	{z12.d}, p7, [x0, #3, MUL VL]
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
+	st1d	{z19.d}, p7, [x0, #2, MUL VL]
+	st1d	{z20.d}, p7, [x0, #3, MUL VL]
 
-	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
-	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
-	ld1d	{z11.d}, p7/z, [sp, #4, MUL VL]
-	ld1d	{z12.d}, p7/z, [sp, #5, MUL VL]
-	addvl	sp, sp, #6
 	ldp	x19, x20, [sp, #16]
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
@@ -738,18 +699,15 @@ END (XXH3_aarch64_sve128_internal_loop)
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
- * Modified Registers: p1, p7, z0-z12, x1-x4, x6-x17
+ * Modified Registers: p1, p7, z0-z7, z16-z18, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve256_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
-	addvl	sp, sp, #-4
 	mov	x29, sp
 	ptrue	p7.d
 	ldr	x10, address_of_xxh3_prime_1
-	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
-	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
 
 	/* save input parameters */
 	mov	x13, x1		// save input into x13
@@ -757,8 +715,8 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
 	ldr	x12, [x10]
-	ld1d	{z9.d}, p7/z, [x0]
-	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
+	ld1d	{z17.d}, p7/z, [x0]
+	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
 	mov	z16.d, x12	// save XXH3_PRIME_1
 
 	/*
@@ -796,13 +754,13 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	mov	z4.d, #32
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -814,11 +772,10 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	/* secret + secretSize - XXH_STRIPE_LEN */
 	add	x1, x15, x4
 	sub	x1, x1, #64
-	#bl	XXH3_aarch64_sve256_scramble
 	ld1d	{z1.d}, p7/z, [x1]
-	calc_scram	z9.d
+	calc_scram	z17.d
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	calc_scram	z10.d
+	calc_scram	z18.d
 	add	x9, x9, #1
 	cmp	x9, x20
 	b.lt	0b
@@ -842,13 +799,13 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	mov	z4.d, #32
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -869,20 +826,17 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	mov	z4.d, #32
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z9.d
-	mov	z9.d, z1.d
+	calc_acc512 z17.d
+	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z10.d
-	mov	z10.d, z1.d
+	calc_acc512 z18.d
+	mov	z18.d, z1.d
 
-	st1d	{z9.d}, p7, [x0]
-	st1d	{z10.d}, p7, [x0, #1, MUL VL]
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
 
-	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
-	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
-	addvl	sp, sp, #4
 	ldp	x19, x20, [sp, #16]
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
@@ -893,13 +847,12 @@ END (XXH3_aarch64_sve256_internal_loop)
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
- * Modified Registers: p1, p7, z0-z12, x1-x4, x6-x17
+ * Modified Registers: p1, p7, z0-z7, z16, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve512_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
-	addvl	sp, sp, #-1
 	mov	x29, sp
 
 	/* save input parameters */
@@ -1018,7 +971,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	mov	z0.d, z1.d
 	/* end acc512 function */
 	st1d	z0.d, p7, [x0]
-	addvl	sp, sp, #1
 	ldp	x19, x20, [sp, #16]
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
