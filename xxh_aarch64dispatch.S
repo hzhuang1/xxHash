@@ -1,6 +1,6 @@
 #include "asmdefs.h"
 
-.data
+.rodata
 
 xxh3_prime_1:	.dword	0x9E3779B1U
 
