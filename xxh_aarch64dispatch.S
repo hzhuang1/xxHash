@@ -34,7 +34,7 @@ xxh3_prime_1:	.dword	0x9E3779B1U
 	eor	z1.d, \acc, z1.d
 	lsr	z5.d, \acc, #47
 	eor	\acc, z1.d, z5.d
-	mul	\acc, p7/m, \acc, z8.d
+	mul	\acc, p7/m, \acc, z16.d
 .endm
 
 /*
@@ -54,7 +54,6 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	ptrue	p7.d
 	init_index
 
-	st1d	{z8.d}, p7, [sp, #1, MUL VL]	// save z8
 	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
 	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
 	st1d	{z11.d}, p7, [sp, #4, MUL VL]	// save z11
@@ -68,7 +67,7 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	mov	x16, x6		// save secretLimit to x16
 	ldr	x10, address_of_xxh3_prime_1
 	ldr	x12, [x10]
-	mov	z8.d, x12	// save XXH3_PRIME_1 into z8
+	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 	mov	w12, #0xffffffff // x12: -1
 	// set -1 in z3
 	mov	z3.d, x12
@@ -178,7 +177,6 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	st1d	{z10.d}, p7, [x0, #1, MUL VL]
 	st1d	{z11.d}, p7, [x0, #2, MUL VL]
 	st1d	{z12.d}, p7, [x0, #3, MUL VL]
-	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
 	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
 	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
 	ld1d	{z11.d}, p7/z, [sp, #4, MUL VL]
@@ -231,7 +229,6 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	st1d	{z11.d}, p7, [x0, #2, MUL VL]
 	st1d	{z12.d}, p7, [x0, #3, MUL VL]
 0:
-	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
 	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
 	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
 	ld1d	{z11.d}, p7/z, [sp, #4, MUL VL]
@@ -258,7 +255,6 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	ptrue	p7.d
 	init_index
 
-	st1d	{z8.d}, p7, [sp, #1, MUL VL]	// save z8
 	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
 	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
 
@@ -270,7 +266,7 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	mov	x16, x6		// save secretLimit to x16
 	ldr	x10, address_of_xxh3_prime_1
 	ldr	x12, [x10]
-	mov	z8.d, x12	// save XXH3_PRIME_1 into z8
+	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 	mov	w12, #0xffffffff // x12: -1
 	// set -1 in z3
 	mov	z3.d, x12
@@ -353,7 +349,6 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 
 	st1d	{z9.d}, p7, [x0]
 	st1d	{z10.d}, p7, [x0, #1, MUL VL]
-	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
 	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
 	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
 	addvl	sp, sp, #4
@@ -392,7 +387,6 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	st1d	{z9.d}, p7, [x0]
 	st1d	{z10.d}, p7, [x0, #1, MUL VL]
 0:
-	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
 	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
 	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
 	addvl	sp, sp, #4
@@ -410,7 +404,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	stp	x29, x30, [sp, #-16]!
 	addvl	sp, sp, #-1
 	mov	x29, sp
-	str	z8, [sp]	// save z8
 
 	mov	x8, x1		// save nbStripeSoFarPtr to x8
 	mov	x9, x2		// save nbStripesPerBlock to x9
@@ -420,7 +413,7 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	mov	x16, x6		// save secretLimit to x16
 	ldr	x10, address_of_xxh3_prime_1
 	ldr	x12, [x10]
-	mov	z8.d, x12	// save XXH3_PRIME_1 into z8
+	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 	mov	w12, #0xffffffff // x12: -1
 	// set -1 in z3
 	mov	z3.d, x12
@@ -498,7 +491,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	str	x6, [x8]
 
 	st1d	{z0.d}, p7, [x0]
-	ldr	z8, [sp]
 	addvl	sp, sp, #1
 	ldp	x29, x30, [sp], #16
 	ret
@@ -531,7 +523,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	str	x17, [x8]
 	st1d	{z0.d}, p7, [x0]
 0:
-	ldr	z8, [sp]
 	addvl	sp, sp, #1
 	ldp	x29, x30, [sp], #16
 	ret
@@ -551,7 +542,6 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	mov	x29, sp
 	ptrue	p7.d
 	ldr	x10, address_of_xxh3_prime_1
-	st1d	{z8.d}, p7, [sp, #1, MUL VL]	// save z8
 	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
 	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
 	st1d	{z11.d}, p7, [sp, #4, MUL VL]	// save z11
@@ -567,7 +557,7 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
 	ld1d	{z11.d}, p7/z, [x0, #2, MUL VL]
 	ld1d	{z12.d}, p7/z, [x0, #3, MUL VL]
-	mov	z8.d, x12			// save XXH3_PRIME_1
+	mov	z16.d, x12			// save XXH3_PRIME_1
 
 	/*
 	 * prepare index
@@ -635,22 +625,22 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	eor	z1.d, z9.d, z1.d
 	lsr	z2.d, z9.d, #47
 	eor	z9.d, z1.d, z2.d
-	mul	z9.d, p7/m, z9.d, z8.d
+	mul	z9.d, p7/m, z9.d, z16.d
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	eor	z1.d, z10.d, z1.d
 	lsr	z2.d, z10.d, #47
 	eor	z10.d, z1.d, z2.d
-	mul	z10.d, p7/m, z10.d, z8.d
+	mul	z10.d, p7/m, z10.d, z16.d
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	eor	z1.d, z11.d, z1.d
 	lsr	z2.d, z11.d, #47
 	eor	z11.d, z1.d, z2.d
-	mul	z11.d, p7/m, z11.d, z8.d
+	mul	z11.d, p7/m, z11.d, z16.d
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	eor	z1.d, z12.d, z1.d
 	lsr	z2.d, z12.d, #47
 	eor	z12.d, z1.d, z2.d
-	mul	z12.d, p7/m, z12.d, z8.d
+	mul	z12.d, p7/m, z12.d, z16.d
 	add	x9, x9, #1
 	cmp	x9, x20
 	b.lt	0b
@@ -733,7 +723,6 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	st1d	{z11.d}, p7, [x0, #2, MUL VL]
 	st1d	{z12.d}, p7, [x0, #3, MUL VL]
 
-	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
 	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
 	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
 	ld1d	{z11.d}, p7/z, [sp, #4, MUL VL]
@@ -759,7 +748,6 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	mov	x29, sp
 	ptrue	p7.d
 	ldr	x10, address_of_xxh3_prime_1
-	st1d	{z8.d}, p7, [sp, #1, MUL VL]	// save z8
 	st1d	{z9.d}, p7, [sp, #2, MUL VL]	// save z9
 	st1d	{z10.d}, p7, [sp, #3, MUL VL]	// save z10
 
@@ -771,7 +759,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	ldr	x12, [x10]
 	ld1d	{z9.d}, p7/z, [x0]
 	ld1d	{z10.d}, p7/z, [x0, #1, MUL VL]
-	mov	z8.d, x12	// save XXH3_PRIME_1
+	mov	z16.d, x12	// save XXH3_PRIME_1
 
 	/*
 	 * prepare index
@@ -892,7 +880,6 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	st1d	{z9.d}, p7, [x0]
 	st1d	{z10.d}, p7, [x0, #1, MUL VL]
 
-	ld1d	{z8.d}, p7/z, [sp, #1, MUL VL]
 	ld1d	{z9.d}, p7/z, [sp, #2, MUL VL]
 	ld1d	{z10.d}, p7/z, [sp, #3, MUL VL]
 	addvl	sp, sp, #4
@@ -914,7 +901,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	stp	x21, x22, [sp, #32]
 	addvl	sp, sp, #-1
 	mov	x29, sp
-	str	z8, [sp]	// save z8
 
 	/* save input parameters */
 	mov	x13, x1		// save input into x13
@@ -923,7 +909,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	mov	x19, x4		// save secretSize into x19
 	ldr	x10, address_of_xxh3_prime_1
 	ldr	x12, [x10]
-	mov	z8.d, x12	// save XXH3_PRIME_1 into z8
+	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 
 	/*
 	 * prepare index
@@ -1032,7 +1018,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	mov	z0.d, z1.d
 	/* end acc512 function */
 	st1d	z0.d, p7, [x0]
-	ldr	z8, [sp]
 	addvl	sp, sp, #1
 	ldp	x19, x20, [sp, #16]
 	ldp	x21, x22, [sp, #32]
