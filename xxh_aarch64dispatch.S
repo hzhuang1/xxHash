@@ -912,8 +912,8 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
-	mov	x29, sp
 	addvl	sp, sp, #-1
+	mov	x29, sp
 	str	z8, [sp]	// save z8
 
 	/* save input parameters */
