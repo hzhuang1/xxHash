@@ -1,9 +1,5 @@
 #include "asmdefs.h"
 
-.rodata
-
-xxh3_prime_1:	.dword	0x9E3779B1U
-
 .text
 
 .macro init_index
@@ -37,6 +33,12 @@ xxh3_prime_1:	.dword	0x9E3779B1U
 	mul	\acc, p7/m, \acc, z16.d
 .endm
 
+.macro ldr_prime
+	movz	x12, #0x9E37, LSL #16
+	mov	x10, #0x79B1
+	orr	x12, x12, x10
+.endm
+
 /*
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
@@ -59,8 +61,7 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	mov	x14, x4		// save nbStripes to x14
 	mov	x15, x5		// save secret to x15
 	mov	x16, x6		// save secretLimit to x16
-	ldr	x10, address_of_xxh3_prime_1
-	ldr	x12, [x10]
+	ldr_prime
 	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 	mov	w12, #0xffffffff // x12: -1
 	// set -1 in z3
@@ -244,8 +245,7 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	mov	x14, x4		// save nbStripes to x14
 	mov	x15, x5		// save secret to x15
 	mov	x16, x6		// save secretLimit to x16
-	ldr	x10, address_of_xxh3_prime_1
-	ldr	x12, [x10]
+	ldr_prime
 	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 	mov	w12, #0xffffffff // x12: -1
 	// set -1 in z3
@@ -384,8 +384,7 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	mov	x14, x4		// save nbStripes to x14
 	mov	x15, x5		// save secret to x15
 	mov	x16, x6		// save secretLimit to x16
-	ldr	x10, address_of_xxh3_prime_1
-	ldr	x12, [x10]
+	ldr_prime
 	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 	mov	w12, #0xffffffff // x12: -1
 	// set -1 in z3
@@ -511,14 +510,13 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	stp	x21, x22, [sp, #32]
 	mov	x29, sp
 	ptrue	p7.d
-	ldr	x10, address_of_xxh3_prime_1
 
 	/* save input parameters */
 	mov	x13, x1		// save input into x13
 	mov	x14, x2		// save len into x14
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
-	ldr	x12, [x10]
+	ldr_prime
 	ld1d	{z17.d}, p7/z, [x0]
 	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
 	ld1d	{z19.d}, p7/z, [x0, #2, MUL VL]
@@ -707,14 +705,13 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	stp	x21, x22, [sp, #32]
 	mov	x29, sp
 	ptrue	p7.d
-	ldr	x10, address_of_xxh3_prime_1
 
 	/* save input parameters */
 	mov	x13, x1		// save input into x13
 	mov	x14, x2		// save len into x14
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
-	ldr	x12, [x10]
+	ldr_prime
 	ld1d	{z17.d}, p7/z, [x0]
 	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
 	mov	z16.d, x12	// save XXH3_PRIME_1
@@ -860,8 +857,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	mov	x14, x2		// save len into x14
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
-	ldr	x10, address_of_xxh3_prime_1
-	ldr	x12, [x10]
+	ldr_prime
 	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 
 	/*
@@ -976,5 +972,3 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	ldp	x29, x30, [sp], #48
 	ret
 END (XXH3_aarch64_sve512_internal_loop)
-
-address_of_xxh3_prime_1:	.dword	xxh3_prime_1
