@@ -21,9 +21,9 @@
 	// mixed_hi = mixed >> 32
 	lsr	z6.d, p7/m, z6.d, z4.d
 	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, \acc
+	mad	z1.d, p7/m, z6.d, z5.d
 	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
+	add	\acc, p7/m, \acc, z1.d
 .endm
 
 .macro calc_scram acc
@@ -92,22 +92,18 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
 	calc_acc512 z19.d
-	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
 	calc_acc512 z20.d
-	mov	z20.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -142,22 +138,18 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
 	calc_acc512 z19.d
-	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
 	calc_acc512 z20.d
-	mov	z20.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -188,22 +180,18 @@ ENTRY (XXH3_aarch64_sve128_consume_stripes)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
 	calc_acc512 z19.d
-	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
 	calc_acc512 z20.d
-	mov	z20.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -275,12 +263,10 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -311,12 +297,10 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -345,12 +329,10 @@ ENTRY (XXH3_aarch64_sve256_consume_stripes)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -420,7 +402,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z0.d
 	// always store acc in z0
-	mov	z0.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -451,7 +432,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z0.d
 	// always store acc in z0
-	mov	z0.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -481,7 +461,6 @@ ENTRY (XXH3_aarch64_sve512_consume_stripes)
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z0.d
 	// always store acc in z0
-	mov	z0.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -559,22 +538,18 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
 	calc_acc512 z19.d
-	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
 	calc_acc512 z20.d
-	mov	z20.d, z1.d
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -629,22 +604,18 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
 	calc_acc512 z19.d
-	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
 	calc_acc512 z20.d
-	mov	z20.d, z1.d
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -665,22 +636,18 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
 	calc_acc512 z19.d
-	mov	z19.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
 	calc_acc512 z20.d
-	mov	z20.d, z1.d
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
@@ -752,12 +719,10 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -797,12 +762,10 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -824,12 +787,10 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z17.d
-	mov	z17.d, z1.d
 
 	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
 	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
 	calc_acc512 z18.d
-	mov	z18.d, z1.d
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
@@ -901,7 +862,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z0.d
 	// always store acc in z0
-	mov	z0.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -942,7 +902,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z0.d
 	// always store acc in z0
-	mov	z0.d, z1.d
 	/* end acc512 function */
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -964,7 +923,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	ld1d	{z2.d}, p7/z, [x2]
 	calc_acc512 z0.d
 	// always store acc in z0
-	mov	z0.d, z1.d
 	/* end acc512 function */
 	st1d	z0.d, p7, [x0]
 	ldp	x19, x20, [sp, #16]
