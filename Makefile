@@ -96,7 +96,7 @@ all: lib xxhsum
 
 ## xxhsum is the command line interface (CLI)
 xxhsum: CPPFLAGS += -DXXHSUM_AARCH64_DISPATCH=1
-xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS) xxh_aarch64dispatch.o
+xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS) xxh_aarch64dispatch.o xxh3_aarch64_sve.o
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
 
 xxhsum32: CFLAGS += -m32  ## generate CLI in 32-bits mode
@@ -105,6 +105,9 @@ xxhsum32: xxhash.c $(XXHSUM_SPLIT_SRCS) ## do not generate object (avoid mixing 
 
 xxh_aarch64dispatch.o: xxh_aarch64dispatch.S
 	$(CC) $(FLAGS) -o xxh_aarch64dispatch.o -c xxh_aarch64dispatch.S
+
+xxh3_aarch64_sve.o: xxh3_aarch64_sve.S
+	$(CC) $(FLAGS) -o xxh3_aarch64_sve.o -c xxh3_aarch64_sve.S
 
 xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
@@ -409,7 +412,7 @@ cppcheck:  ## check C source files using $(CPPCHECK) static analyzer
 namespaceTest:  ## ensure XXH_NAMESPACE redefines all public symbols
 	$(CC) -c xxhash.c
 	$(CC) -DXXH_NAMESPACE=TEST_ -c xxhash.c -o xxhash2.o
-	$(CC) xxhash.o xxhash2.o $(XXHSUM_SPLIT_SRCS)  -o xxhsum2  # will fail if one namespace missing (symbol collision)
+	$(CC) xxhash.o xxhash2.o $(XXHSUM_SPLIT_SRCS) -o xxhsum2  # will fail if one namespace missing (symbol collision)
 	$(RM) *.o xxhsum2  # clean
 
 MAN = $(XXHSUM_SRC_DIR)/xxhsum.1

@@ -3245,6 +3245,13 @@ extern void XXH3_aarch64_sve256_consume_stripes(xxh_u64*, size_t*, size_t,
 extern void XXH3_aarch64_sve512_consume_stripes(xxh_u64*, size_t*, size_t,
 						const xxh_u8*, size_t,
 						const xxh_u8*, size_t);
+	/// void XXH3_aarch64_sve_acc(
+	///     xxh_u64 *XXH_RESTRICT acc,          // x0
+	///     const xxh_u8 *XXH_RESTRICT input,   // x1
+	///     const xxh_u8 *XXH_RESTRICT secret,  // x2
+	///     size_t nbBlocks,                    // x3
+	///     XXH3_f_accumulate_512 {ignored}     // x4
+	/// );
 #endif
 
 /*
@@ -4813,6 +4820,13 @@ typedef void (*XXH3_f_accumulate_512)(void* XXH_RESTRICT, const void*, const voi
 typedef void (*XXH3_f_scrambleAcc)(void* XXH_RESTRICT, const void*);
 typedef void (*XXH3_f_initCustomSecret)(void* XXH_RESTRICT, xxh_u64);
 
+#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+extern void XXH3_aarch64_sve_acc(xxh_u64* XXH_RESTRICT,
+			const xxh_u8 *XXH_RESTRICT,
+			const xxh_u8 *XXH_RESTRICT,
+			size_t,
+                        XXH3_f_accumulate_512);
+#endif
 
 #if (XXH_VECTOR == XXH_AVX512)
 
@@ -4881,6 +4895,9 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                       size_t nbStripes,
                       XXH3_f_accumulate_512 f_acc512)
 {
+#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+	XXH3_aarch64_sve_acc(acc, input, secret, nbStripes, f_acc512);
+#else
     size_t n;
     for (n = 0; n < nbStripes; n++ ) {
         const xxh_u8* const in = input + n*XXH_STRIPE_LEN;
@@ -4889,9 +4906,11 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                  in,
                  secret + n*XXH_SECRET_CONSUME_RATE);
     }
+#endif
 }
 
-#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+//#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+#if 0
 /* not aligned on 8, last secret is different from acc & scrambler */
 #define XXH_SECRET_LASTACC_START	7
 
