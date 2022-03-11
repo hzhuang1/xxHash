@@ -4896,6 +4896,7 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                       XXH3_f_accumulate_512 f_acc512)
 {
 #if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+//#if 0
 	XXH3_aarch64_sve_acc(acc, input, secret, nbStripes, f_acc512);
 #else
     size_t n;
