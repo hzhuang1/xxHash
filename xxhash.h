@@ -4895,7 +4895,8 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                       size_t nbStripes,
                       XXH3_f_accumulate_512 f_acc512)
 {
-#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+//#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+#if 0
 	XXH3_aarch64_sve_acc(acc, input, secret, nbStripes, f_acc512);
 #else
     size_t n;
@@ -4909,8 +4910,8 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
 #endif
 }
 
-//#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
-#if 0
+#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+//#if 0
 /* not aligned on 8, last secret is different from acc & scrambler */
 #define XXH_SECRET_LASTACC_START	7
 
