@@ -3017,6 +3017,18 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(const XXH64_canonical_t* src
 #  include <intrin.h>
 #endif
 
+#define ACCRND(acc, offset) \
+do { \
+    svuint64_t input_vec = svld1_u64(mask, xinput + offset); \
+    svuint64_t secret_vec = svld1_u64(mask, xsecret + offset); \
+    svuint64_t mixed = sveor_u64_x(mask, secret_vec, input_vec); \
+    svuint64_t swapped = svtbl_u64(input_vec, kSwap); \
+    svuint64_t mixed_lo = svextw_u64_x(mask, mixed); \
+    svuint64_t mixed_hi = svlsr_n_u64_x(mask, mixed, 32); \
+    svuint64_t mul = svmad_u64_x(mask, mixed_lo, mixed_hi, swapped); \
+    acc = svadd_u64_x(mask, acc, mul); \
+} while (0)
+
 /*
  * One goal of XXH3 is to make it fast on both 32-bit and 64-bit, while
  * remaining a true 64-bit/128-bit hash function.
@@ -4883,6 +4895,72 @@ extern void XXH3_aarch64_sve_acc(xxh_u64* XXH_RESTRICT,
 #  endif  /* __clang__ */
 #endif  /* XXH_PREFETCH_DIST */
 
+#if defined(__ARM_FEATURE_SVE) && (XXH_VECTOR == XXH_SVE) && (XXH_IMPL == XXH_IMPL_ASSEMBLY)
+XXH_FORCE_INLINE
+void XXH3_accumulate_sve(
+    void *__restrict acc,
+    const void *__restrict input,
+    const void *__restrict secret,
+    size_t nbStripes
+)
+{
+    if (nbStripes != 0) {
+        uint64_t *xacc = (uint64_t *)acc;
+        const uint64_t *xinput = (const uint64_t *)input;
+        const uint64_t *xsecret = (const uint64_t *)secret;
+        svuint64_t kSwap = sveor_n_u64_z(svptrue_b64(), svindex_u64(0, 1), 1);
+        uint64_t element_count = svcntd();
+        if (element_count >= 8) {
+            svbool_t mask = svptrue_pat_b64(SV_VL8);
+            svuint64_t vacc = svld1_u64(mask, xacc + 0);
+            do {
+                ACCRND(vacc, 0);
+                xinput += 8;
+                xsecret += 1;
+                nbStripes--;
+           } while (nbStripes != 0);
+
+           svst1_u64(mask, xacc + 0, vacc);
+        } else if (element_count == 2) { /* sve128 */
+            svbool_t mask = svptrue_pat_b64(SV_VL2);
+            svuint64_t acc0 = svld1_u64(mask, xacc + 0);
+            svuint64_t acc1 = svld1_u64(mask, xacc + 2);
+            svuint64_t acc2 = svld1_u64(mask, xacc + 4);
+            svuint64_t acc3 = svld1_u64(mask, xacc + 6);
+            do {
+                ACCRND(acc0, 0);
+                ACCRND(acc1, 2);
+                ACCRND(acc2, 4);
+                ACCRND(acc3, 6);
+                xinput += 8;
+                xsecret += 1;
+                nbStripes--;
+           } while (nbStripes != 0);
+
+           svst1_u64(mask, xacc + 0, acc0);
+           svst1_u64(mask, xacc + 2, acc1);
+           svst1_u64(mask, xacc + 4, acc2);
+           svst1_u64(mask, xacc + 6, acc3);
+        } else if (element_count < 8) {
+            svbool_t mask = svptrue_pat_b64(SV_VL4);
+            svuint64_t acc0 = svld1_u64(mask, xacc + 0);
+            svuint64_t acc1 = svld1_u64(mask, xacc + 4);
+            do {
+                ACCRND(acc0, 0);
+                ACCRND(acc1, 4);
+                xinput += 8;
+                xsecret += 1;
+                nbStripes--;
+           } while (nbStripes != 0);
+
+           svst1_u64(mask, xacc + 0, acc0);
+           svst1_u64(mask, xacc + 4, acc1);
+       }
+
+    }
+}
+#endif
+
 /*
  * XXH3_accumulate()
  * Loops over XXH3_accumulate_512().
@@ -4895,8 +4973,11 @@ XXH3_accumulate(     xxh_u64* XXH_RESTRICT acc,
                       size_t nbStripes,
                       XXH3_f_accumulate_512 f_acc512)
 {
-#if (XXH_IMPL == XXH_IMPL_ASSEMBLY)
-	XXH3_aarch64_sve_acc(acc, input, secret, nbStripes, f_acc512);
+#if defined(__ARM_FEATURE_SVE) && (XXH_IMPL == XXH_IMPL_ASSEMBLY) && (XXH_VECTOR == XXH_SVE)
+//#if 0
+	XXH3_accumulate_sve(acc, input, secret, nbStripes);
+	(void)f_acc512;
+	//XXH3_aarch64_sve_acc(acc, input, secret, nbStripes, f_acc512);
 #else
     size_t n;
     for (n = 0; n < nbStripes; n++ ) {
