@@ -8,19 +8,18 @@
 .endm
 
 .macro calc_acc512 acc
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z2.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z5.d
-	// acc = mixed_lo + swapped
-	add	\acc, p7/m, \acc, z1.d
+        // mixed = secret EOR input
+        eor     z2.d, p7/m, z2.d, z1.d
+        // swapped = SWAP(input)
+        tbl     z1.d, {z1.d}, z7.d
+        // mixed_lo = mixed AND 0xffffffff (technically (u64)(u32) mixed)
+        uxtw    z6.d, p7/m, z2.d
+        // mixed_hi = mixed >> 32
+        lsr     z2.d, p7/m, z2.d, #32
+        // mixed_lo = mixed_hi * mixed_lo + swapped (distributive property)
+        mad     z2.d, p7/m, z6.d, z1.d
+        // acc += mixed_lo
+        add     \acc, p7/m, \acc, z2.d
 .endm
 
 .macro calc_scram acc
