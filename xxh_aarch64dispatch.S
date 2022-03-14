@@ -8,6 +8,28 @@ xxh3_prime_1:	.dword	0x9E3779B1U
 .globl XXH_OK
 .globl XXH3_128bits_update
 
+.macro init_index
+        index   z7.d, #0, #1
+        eor     z7.d, z7.d, #1
+.endm
+
+.macro calc_acc512 acc, key
+        // swapped = SWAP(input)
+        tbl     z5.d, {z1.d}, z7.d
+        // mixed = secret EOR input
+        eor     z1.d, p7/m, z1.d, \key
+        // mixed_lo = mixed AND 0xffffffff (technically (u64)(u32) mixed)
+        uxtw    z6.d, p7/m, z1.d
+        // mixed_hi = mixed >> 32
+        lsr     z1.d, p7/m, z1.d, #32
+        // mixed_lo = mixed_hi * mixed_lo + swapped (distributive property)
+        mad     z1.d, p7/m, z6.d, z5.d
+        // acc += mixed_lo
+        add     \acc, p7/m, \acc, z1.d
+.endm
+
+
+
 #define XXH_ACCEPT_NULL_INPUT_POINTER 2
 ENTRY (XXH3_aarch64_update)
 	PTR_ARG (0)
@@ -1869,11 +1891,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	 * p7 and z7 are reserved to use.
 	 */
 	ptrue	p7.d, VL8
-	mov	z1.d, #2
-	pfalse	p1.b
-	index	z7.d, #1, #1
-	trn1	p1.d, p1.d, p7.d
-	sub	z7.d, p1/m, z7.d, z1.d
+	init_index
 
 	addvl	sp, sp, #-8
 	st1d	{z8.d}, p7, [sp]	// save z8
@@ -1956,9 +1974,6 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	udiv	x20, x7, x6	// x20: nb_blocks
 	mov	w12, #0xffffffff // x12: -1
 	mov	x9, xzr		// x9: n
-	// set -1 in z3
-	mov	z3.d, x12
-	mov	z4.d, #32
 	cmp	x9, x20
 	b.ge	1f
 0:
@@ -1973,306 +1988,82 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
  10:
 	// make z0 loaded outside
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z16.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z16.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z17.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z17.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z18.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z18.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z19.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z19.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z20.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z20.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z21.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z21.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z22.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z22.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z23.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z23.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z24.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z24.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z25.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z25.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z26.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z26.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z27.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z27.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z28.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z28.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z29.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z29.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z30.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z30.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z31.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z31.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
@@ -2310,306 +2101,82 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 20:
 	// make z0 loaded outside
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z16.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z16.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z17.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z17.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z18.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z18.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z19.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z19.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z20.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z20.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z21.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z21.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z22.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z22.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z23.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z23.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z24.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z24.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z25.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z25.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z26.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z26.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z27.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z27.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z28.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z28.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z29.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z29.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z30.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z30.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z31.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z31.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	21f
@@ -2628,21 +2195,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	// make z0 loaded outside
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z2.d}, p7/z, [x2]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z2.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// always store acc in z0
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z2.d
 	/* end acc512 function */
 	st1d	z0.d, p7, [x0]
 
@@ -2688,11 +2241,7 @@ ENTRY (XXH3_aarch64_sve512_accum)
 	 */
 	ptrue	p7.d
 	//ptrue	p7.d, VL8
-	mov	z1.d, #2
-	pfalse	p1.b
-	index	z7.d, #1, #1
-	trn1	p1.d, p1.d, p7.d
-	sub	z7.d, p1/m, z7.d, z1.d
+	init_index
 
 	addvl	sp, sp, #-8
 	st1d	{z8.d}, p7, [sp]	// save z8
@@ -2770,321 +2319,91 @@ ENTRY (XXH3_aarch64_sve512_accum)
 	mov	x4, #8
 
 	mov	w12, #0xffffffff
-	// set -1 in z4
-	mov	z3.d, x12
-	mov	z4.d, #32
 	mov	x3, x2
 	/* start accumulate function */
 	mov	w12, #0xffffffff
-	// set -1 in z4
-	mov	z3.d, x12
-	mov	z4.d, #32
 	cmp	x3, #0
 	b.eq	11f
  10:
 	// make z0 loaded outside
 	ld1d	{z1.d}, p7/z, [x1]
 	ld1d	{z16.d}, p7/z, [x15]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z16.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z16.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z17.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z17.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z18.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z18.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z19.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z19.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z20.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z20.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z21.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z21.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z22.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z22.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z23.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z23.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z24.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z24.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z25.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z25.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z26.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z26.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z27.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z27.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z28.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z28.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z29.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z29.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z30.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z30.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
 	ld1d	{z1.d}, p7/z, [x1]
-	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z31.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
-	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z0.d
-	// acc = mixed_lo + swapped
-	add	z1.d, p7/m, z1.d, z5.d
-	// acc is kept in z1
-	mov	z0.d, z1.d
+	calc_acc512 z0.d, z31.d
 	add	x1, x1, #64
 	subs	x3, x3, #1
 	b.eq	11f
