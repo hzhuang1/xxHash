@@ -3,11 +3,8 @@
 .text
 
 .macro init_index
-	mov	z1.d, #2
-	pfalse	p1.b
-	index	z7.d, #1, #1
-	trn1	p1.d, p1.d, p7.d
-	sub	z7.d, p1/m, z7.d, z1.d
+	index	z7.d, #0, #1
+	eor	z7.d, z7.d, #1
 .endm
 
 .macro calc_acc512 acc
