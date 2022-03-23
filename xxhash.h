@@ -4721,46 +4721,6 @@ XXH3_scrambleAcc_vsx(void* XXH_RESTRICT acc, const void* XXH_RESTRICT secret)
 #if (XXH_VECTOR == XXH_SVE)
 
 XXH_FORCE_INLINE void
-XXH3_accumulate_512_sve( void* XXH_RESTRICT acc,
-                   const void* XXH_RESTRICT input,
-                   const void* XXH_RESTRICT secret)
-{
-    uint64_t *xacc = (uint64_t *)acc;
-    const uint64_t *xinput = (const uint64_t *)(const void *)input;
-    const uint64_t *xsecret = (const uint64_t *)(const void *)secret;
-    svuint64_t kSwap = sveor_n_u64_z(svptrue_b64(), svindex_u64(0, 1), 1);
-    uint64_t element_count = svcntd();
-    if (element_count >= 8) {
-        svbool_t mask = svptrue_pat_b64(SV_VL8);
-        svuint64_t vacc = svld1_u64(mask, xacc);
-        ACCRND(vacc, 0);
-        svst1_u64(mask, xacc, vacc);
-    } else if (element_count == 2) {   /* sve128 */
-        svbool_t mask = svptrue_pat_b64(SV_VL2);
-        svuint64_t acc0 = svld1_u64(mask, xacc + 0);
-        svuint64_t acc1 = svld1_u64(mask, xacc + 2);
-        svuint64_t acc2 = svld1_u64(mask, xacc + 4);
-        svuint64_t acc3 = svld1_u64(mask, xacc + 6);
-        ACCRND(acc0, 0);
-        ACCRND(acc1, 2);
-        ACCRND(acc2, 4);
-        ACCRND(acc3, 6);
-        svst1_u64(mask, xacc + 0, acc0);
-        svst1_u64(mask, xacc + 2, acc1);
-        svst1_u64(mask, xacc + 4, acc2);
-        svst1_u64(mask, xacc + 6, acc3);
-    } else if (element_count < 8) {
-        svbool_t mask = svptrue_pat_b64(SV_VL4);
-        svuint64_t acc0 = svld1_u64(mask, xacc + 0);
-        svuint64_t acc1 = svld1_u64(mask, xacc + 4);
-        ACCRND(acc0, 0);
-        ACCRND(acc1, 4);
-        svst1_u64(mask, xacc + 0, acc0);
-        svst1_u64(mask, xacc + 4, acc1);
-    }
-}
-
-XXH_FORCE_INLINE void
 XXH3_accumulate_sve(xxh_u64* XXH_RESTRICT acc,
                const xxh_u8* XXH_RESTRICT input,
                const xxh_u8* XXH_RESTRICT secret,
@@ -5020,7 +4980,7 @@ typedef void (*XXH3_f_initCustomSecret)(void* XXH_RESTRICT, xxh_u64);
 #define XXH3_initCustomSecret XXH3_initCustomSecret_scalar
 
 #elif (XXH_VECTOR == XXH_SVE)
-#define XXH3_accumulate_512 XXH3_accumulate_512_sve
+#define XXH3_accumulate_512 XXH3_accumulate_512_scalar
 #define XXH3_accumulate     XXH3_accumulate_sve
 #define XXH3_scrambleAcc    XXH3_scrambleAcc_scalar
 #define XXH3_initCustomSecret XXH3_initCustomSecret_scalar
