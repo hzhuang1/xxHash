@@ -4739,14 +4739,14 @@ XXH3_accumulate_sve(xxh_u64* XXH_RESTRICT acc,
                 /*
                  * svprfd(svbool_t, void *, enum svfprop);
                  */
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                svprfd(mask, xinput + 320, SV_PLDL1STRM);
                 ACCRND(vacc, 0);
                 xinput += 8;
                 xsecret += 1;
                 nbStripes--;
            } while (nbStripes != 0);
 
-           svst1_u64(mask, xacc + 0, vacc);
+            svst1_u64(mask, xacc + 0, vacc);
         } else if (element_count == 2) { /* sve128 */
             svbool_t mask = svptrue_pat_b64(SV_VL2);
             svuint64_t acc0 = svld1_u64(mask, xacc + 0);
