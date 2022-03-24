@@ -3178,6 +3178,12 @@ enum XXH_VECTOR_TYPE /* fake enum */ {
 #  endif
 #endif
 
+/* __ARM_FEATURE_SVE is only supported by GCC & Clang. */
+#if (XXH_VECTOR == XXH_SVE) && !defined(__ARM_FEATURE_SVE)
+#  undef XXH_VECTOR
+#  define XXH_VECTOR XXH_SCALAR
+#endif
+
 /*
  * Controls the alignment of the accumulator,
  * for compatibility with aligned vector loads, which are usually faster.
