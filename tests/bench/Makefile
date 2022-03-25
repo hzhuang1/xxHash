@@ -37,6 +37,9 @@ LDFLAGS  += $(MOREFLAGS)
 
 
 OBJ_LIST  = main.o bhDisplay.o benchHash.o benchfn.o timefn.o
+ifeq ($(ARM64_DISPATCH),1)
+OBJ_LIST += xxh_arm64dispatch.o xxh_arm64sve.o
+endif
 
 
 default: benchHash
@@ -62,6 +65,13 @@ main.o: bhDisplay.h hashes.h
 bhDisplay.o: bhDisplay.h benchHash.h
 
 benchHash.o: benchHash.h
+
+ifeq ($(ARM64_DISPATCH),1)
+xxh_arm64dispatch.o: ../../xxh_arm64dispatch.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
+xxh_arm64sve.o: ../../xxh_arm64sve.S
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
+endif
 
 
 clean:
