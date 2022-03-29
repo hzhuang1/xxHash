@@ -45,11 +45,11 @@ ENTRY (XXH3_accumulate_sveasm)
         index   z7.d, #0, #1        // z7 = [ 0, 1, 2, 3, 4, 5... ]
         eor     z7.d, z7.d, #1      // z7 = [ 1, 0, 3, 2, 5, 4... ]
         // Determine the SVE vector size so the loop can be unrolled.
-        cntd    x4
-        cmp     x4, #2 // 128 bits exact
-        b.eq    L(acc.sve128)
-        cmp     x4, #8 // 256-384 bits
-        b.lo    L(acc.sve256)
+        //cntd    x4
+        //cmp     x4, #2 // 128 bits exact
+        //b.eq    L(acc.sve128)
+        //cmp     x4, #8 // 256-384 bits
+        //b.lo    L(acc.sve256)
         // FALLTHROUGH: 512+ bits
         // SVE512 and larger (e.g. Fujitsu A64FX)
         // This is the simplest version as it only requires one iteration per stripe.
@@ -125,6 +125,173 @@ L(acc.sve256):
         st1d    {z1.d}, p7, [x0, x4, LSL #3]
         ret
 END (XXH3_accumulate_sveasm)
+
+.macro init_index
+	mov	z1.d, #2
+	pfalse	p1.b
+	index	z7.d, #1, #1
+	trn1	p1.d, p1.d, p7.d
+	sub	z7.d, p1/m, z7.d, z1.d
+.endm
+
+.macro calc_acc512 acc
+	// swapped = SWAP(input)
+	tbl	z5.d, {z1.d}, z7.d
+	// mixed = input EOR secret
+	eor	z1.d, p7/m, z1.d, z2.d
+	mov	z6.d, z1.d
+	// mixed_lo = mixed AND 0xffffffff
+	and	z1.d, p7/m, z1.d, z3.d
+	// mixed_hi = mixed >> 32
+	lsr	z6.d, p7/m, z6.d, z4.d
+	// mixed_lo = mixed_hi * acc + mixed_lo
+	mad	z1.d, p7/m, z6.d, z5.d
+	// acc = mixed_lo + swapped
+	add	\acc, p7/m, \acc, z1.d
+.endm
+
+.macro calc_scram acc
+	eor	z1.d, \acc, z1.d
+	lsr	z5.d, \acc, #47
+	eor	\acc, z1.d, z5.d
+	mul	\acc, p7/m, \acc, z16.d
+.endm
+
+.macro ldr_prime
+	movz	x12, #0x9E37, LSL #16
+	mov	x10, #0x79B1
+	orr	x12, x12, x10
+.endm
+
+/*
+ * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
+ *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
+ * Output Registers: None
+ * Modified Registers: p1, p7, z0-z7, z16, x1-x4, x6-x17
+ */
+ENTRY (XXH3_aarch64_sve512_internal_loop)
+	stp	x29, x30, [sp, #-48]!
+	stp	x19, x20, [sp, #16]
+	stp	x21, x22, [sp, #32]
+	mov	x29, sp
+
+	/* save input parameters */
+	mov	x13, x1		// save input into x13
+	mov	x14, x2		// save len into x14
+	mov	x15, x3		// save secret into x15
+	mov	x19, x4		// save secretSize into x19
+	ldr_prime
+	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
+
+	/*
+	 * prepare index
+	 * p7 and z7 are reserved to use.
+	 */
+	ptrue	p7.d, VL8
+	init_index
+
+	ld1d	{z0.d}, p7/z, [x0]
+	/*
+	 * nbStripesPerBlock =
+	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
+	 */
+	sub	x5, x4, #64
+	lsr	x5, x5, #3	// x5: nbStripesPerBlock
+	/* block_len = XXH_STRIPE_LEN * nbStripesPerBlock; */
+	lsl	x6, x5, #6	// x6: block_len
+	sub	x7, x2, #1	// x7: len - 1
+	/* nb_blocks = (len - 1) / block_len; */
+	udiv	x20, x7, x6	// x20: nb_blocks
+	mov	w12, #0xffffffff // x12: -1
+	mov	x9, xzr		// x9: n
+	// set -1 in z3
+	mov	z3.d, x12
+	mov	z4.d, #32
+	cmp	x9, x20
+	b.ge	1f
+0:
+	mul	x1, x6, x9	// x1: n * block_len
+	add	x1, x1, x13	// x1: input + n * block_len
+	mov	x2, x15		// x2: secret
+	mov	x3, x5		// x3: nbStripesPerBlock
+	/* start accumulate function */
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	11f
+10:
+	/* start acc512 function */
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z0.d
+	// always store acc in z0
+	/* end acc512 function */
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	10b
+11:
+	/* end accumulate function */
+
+	/* secret + secretSize - XXH_STRIPE_LEN */
+	add	x1, x15, x4
+	sub	x1, x1, #64
+	/* start scramble function */
+	ld1d	{z1.d}, p7/z, [x1]
+	calc_scram	z0.d
+	/* end scramble function */
+	add	x9, x9, #1
+	cmp	x9, x20
+	b.lt	0b
+1:
+	/*
+	 * nbStripes =
+	 * ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
+	 */
+	mul	x9, x6, x20	// overwrite x9 (n)
+	sub	x7, x7, x9
+	lsr	x3, x7, #6	// x3: nbStripes
+	mov	x2, x15		// x2: secret
+	add	x1, x13, x9	// x1: input
+	/* start accumulate function */
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	21f
+20:
+	/* start acc512 function */
+	// z3 and z4 are initialized already
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z0.d
+	// always store acc in z0
+	/* end acc512 function */
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	20b
+21:
+	/* end accumulate function */
+
+	/* p = input + len - XXH_STRIPE_LEN; */
+	add	x1, x13, x14
+	sub	x1, x1, #64	// x1: p
+	/* secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START); */
+	add	x2, x15, x19
+	sub	x2, x2, #64
+	sub	x2, x2, #7
+	/* start acc512 function */
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z0.d
+	// always store acc in z0
+	/* end acc512 function */
+	st1d	z0.d, p7, [x0]
+	ldp	x19, x20, [sp, #16]
+	ldp	x21, x22, [sp, #32]
+	ldp	x29, x30, [sp], #48
+	ret
+END (XXH3_aarch64_sve512_internal_loop)
 
 .section ".note.GNU-stack", "" // Ensures that this won't mark the stack as executable
 

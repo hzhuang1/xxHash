@@ -69,6 +69,13 @@ XXH3_accumulate_sveasm(xxh_u64* XXH_RESTRICT acc,
                        const xxh_u8* XXH_RESTRICT secret,
                        size_t nbStripes);
 
+extern XXH64_hash_t
+XXH3_aarch64_sve512_internal_loop(xxh_u64* XXH_RESTRICT acc,
+                                  const xxh_u8* XXH_RESTRICT input,
+                                  size_t len,
+                                  const xxh_u8* XXH_RESTRICT secret,
+                                  size_t secretSize);
+
 /* ===   Vector implementations   === */
 
 /*!
@@ -168,6 +175,61 @@ XXH_DEFINE_DISPATCH_FUNCS(neon)
 XXH_DEFINE_DISPATCH_FUNCS(sveasm)
 #endif
 
+XXH_FORCE_INLINE XXH64_hash_t
+XXH3_hashLong_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
+                                 const void* XXH_RESTRICT secret, size_t secretSize)
+{
+    XXH_ALIGN(XXH_ACC_ALIGN) xxh_u64 acc[XXH_ACC_NB] = XXH3_INIT_ACC;
+
+    XXH3_aarch64_sve512_internal_loop(acc, (const xxh_u8*)input, len, (const xxh_u8*)secret, secretSize);
+
+    /* converge into final hash */
+    XXH_STATIC_ASSERT(sizeof(acc) == 64);
+    /* do not align on 8, so that the secret is different from the accumulator */
+#define XXH_SECRET_MERGEACCS_START 11
+    XXH_ASSERT(secretSize >= sizeof(acc) + XXH_SECRET_MERGEACCS_START);
+    return XXH3_mergeAccs(acc, (const xxh_u8*)secret + XXH_SECRET_MERGEACCS_START, (xxh_u64)len * XXH_PRIME64_1);
+}
+
+XXH_FORCE_INLINE XXH64_hash_t
+XXHL64_asm_default_sve(const void* XXH_RESTRICT input, size_t len)
+{
+    return XXH3_hashLong_64b_internal_sve(input, len, XXH3_kSecret,
+                                          sizeof(XXH3_kSecret));
+}
+
+XXH_FORCE_INLINE XXH64_hash_t
+XXH3_hashLong_64b_withSeed_internal_sve(const void* input, size_t len,
+                                    XXH64_hash_t seed,
+                                    XXH3_f_initCustomSecret f_initSec)
+{
+#if XXH_SIZE_OPT <= 0
+    if (seed == 0)
+        return XXH3_hashLong_64b_internal_sve(input, len,
+                                          XXH3_kSecret, sizeof(XXH3_kSecret));
+#endif
+    {   XXH_ALIGN(XXH_SEC_ALIGN) xxh_u8 secret[XXH_SECRET_DEFAULT_SIZE];
+        f_initSec(secret, seed);
+        return XXH3_hashLong_64b_internal_sve(input, len, secret, sizeof(secret));
+    }
+}
+
+XXH_FORCE_INLINE XXH64_hash_t
+XXHL64_asm_seed_sve(const void* XXH_RESTRICT input, size_t len,
+                    XXH64_hash_t seed)
+{
+    return XXH3_hashLong_64b_withSeed_internal_sve(input, len, seed, XXH3_initCustomSecret_scalar);
+}
+
+
+XXH_FORCE_INLINE XXH64_hash_t
+XXHL64_asm_secret_sve(const void* XXH_RESTRICT input, size_t len,
+                             XXH64_hash_t seed64, const xxh_u8* XXH_RESTRICT secret, size_t secretLen)
+{
+    (void)seed64;
+    return XXH3_hashLong_64b_internal_sve(input, len, secret, secretLen);
+}
+
 /* ====    Dispatchers    ==== */
 
 typedef XXH64_hash_t (*XXH3_dispatcharm64_hashLong64_default)(const void* XXH_RESTRICT, size_t);
@@ -197,7 +259,8 @@ static const XXH_dispatchFunctions_s XXH_kDispatch[XXH_NB_DISPATCHES] = {
     /* Scalar */ { XXHL64_default_scalar,  XXHL64_seed_scalar,  XXHL64_secret_scalar,  XXH3_update_scalar },
     /* NEON   */ { XXHL64_default_neon,    XXHL64_seed_neon,    XXHL64_secret_neon,    XXH3_update_neon },
 #if XXH_DISPATCH_SVE
-    /* SVE    */ { XXHL64_default_sveasm,  XXHL64_seed_sveasm,  XXHL64_secret_sveasm,  XXH3_update_sveasm },
+    /* SVE    */ /*{ XXHL64_default_sveasm,  XXHL64_seed_sveasm,  XXHL64_secret_sveasm,  XXH3_update_sveasm },*/
+                 { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_update },
 #else
                  { NULL,                   NULL,                NULL,                  NULL }
 #endif
