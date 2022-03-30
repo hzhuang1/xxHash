@@ -67,6 +67,7 @@ bhDisplay.o: bhDisplay.h benchHash.h
 benchHash.o: benchHash.h
 
 ifeq ($(ARM64_DISPATCH),1)
+CFLAGS += -DARM64_DISPATCH
 xxh_arm64dispatch.o: ../../xxh_arm64dispatch.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
 xxh_arm64sve.o: ../../xxh_arm64sve.S
