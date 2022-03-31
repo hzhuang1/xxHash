@@ -78,6 +78,18 @@ XXH3_accumulate_sveasm(xxh_u64* XXH_RESTRICT acc,
                        size_t nbStripes);
 
 extern XXH64_hash_t
+XXH3_aarch64_sve128_internal_loop(xxh_u64* XXH_RESTRICT acc,
+                                  const xxh_u8* XXH_RESTRICT input,
+                                  size_t len,
+                                  const xxh_u8* XXH_RESTRICT secret,
+                                  size_t secretSize);
+extern XXH64_hash_t
+XXH3_aarch64_sve256_internal_loop(xxh_u64* XXH_RESTRICT acc,
+                                  const xxh_u8* XXH_RESTRICT input,
+                                  size_t len,
+                                  const xxh_u8* XXH_RESTRICT secret,
+                                  size_t secretSize);
+extern XXH64_hash_t
 XXH3_aarch64_sve512_internal_loop(xxh_u64* XXH_RESTRICT acc,
                                   const xxh_u8* XXH_RESTRICT input,
                                   size_t len,
@@ -407,14 +419,12 @@ static void XXH_setDispatch(void)
 
 		__asm__ __volatile__("cntd %0" : "=r"(sve));
 		switch (sve) {
-#if 0
 		case 2:
 			XXH_g_loop = XXH3_aarch64_sve128_internal_loop;
 			break;
 		case 4:
 			XXH_g_loop = XXH3_aarch64_sve256_internal_loop;
 			break;
-#endif
 		default:
 			XXH_g_loop = XXH3_aarch64_sve512_internal_loop;
 			break;

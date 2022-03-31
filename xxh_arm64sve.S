@@ -167,6 +167,330 @@ END (XXH3_accumulate_sveasm)
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
+ * Modified Registers: p1, p7, z0-z7, z16-z20, x1-x4, x6-x17
+ */
+ENTRY (XXH3_aarch64_sve128_internal_loop)
+	stp	x29, x30, [sp, #-48]!
+	stp	x19, x20, [sp, #16]
+	stp	x21, x22, [sp, #32]
+	mov	x29, sp
+	ptrue	p7.d
+
+	/* save input parameters */
+	mov	x13, x1		// save input into x13
+	mov	x14, x2		// save len into x14
+	mov	x15, x3		// save secret into x15
+	mov	x19, x4		// save secretSize into x19
+	ldr_prime
+	ld1d	{z17.d}, p7/z, [x0]
+	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
+	ld1d	{z19.d}, p7/z, [x0, #2, MUL VL]
+	ld1d	{z20.d}, p7/z, [x0, #3, MUL VL]
+	mov	z16.d, x12			// save XXH3_PRIME_1
+
+	/*
+	 * prepare index
+	 * p7 and z7 are reserved to use.
+	 */
+	init_index
+
+	/*
+	 * nbStripesPerBlock =
+	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
+	 */
+	sub	x5, x4, #64
+	lsr	x5, x5, #3	// x5: nbStripesPerBlock
+	/* block_len = XXH_STRIPE_LEN * nbStripesPerBlock; */
+	lsl	x6, x5, #6	// x6: block_len
+	sub	x7, x2, #1	// x7: len - 1
+	/* nb_blocks = (len - 1) / block_len; */
+	udiv	x20, x7, x6	// x20: nb_blocks
+	mov	x9, xzr		// x9: n
+	cmp	x9, x20
+	b.ge	1f
+0:
+	mul	x1, x6, x9	// x1: n * block_len
+	add	x1, x1, x13	// x1: input + n * block_len
+	mov	x2, x15		// x2: secret
+	mov	x3, x5		// x3: nbStripesPerBlock
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	11f
+10:
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z17.d
+
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	calc_acc512 z18.d
+
+	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
+	calc_acc512 z19.d
+
+	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
+	calc_acc512 z20.d
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	10b
+11:
+
+	/* secret + secretSize - XXH_STRIPE_LEN */
+	add	x1, x15, x4
+	sub	x1, x1, #64
+	ld1d	{z1.d}, p7/z, [x1]
+	eor	z1.d, z17.d, z1.d
+	lsr	z2.d, z17.d, #47
+	eor	z17.d, z1.d, z2.d
+	mul	z17.d, p7/m, z17.d, z16.d
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	eor	z1.d, z18.d, z1.d
+	lsr	z2.d, z18.d, #47
+	eor	z18.d, z1.d, z2.d
+	mul	z18.d, p7/m, z18.d, z16.d
+	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
+	eor	z1.d, z19.d, z1.d
+	lsr	z2.d, z19.d, #47
+	eor	z19.d, z1.d, z2.d
+	mul	z19.d, p7/m, z19.d, z16.d
+	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
+	eor	z1.d, z20.d, z1.d
+	lsr	z2.d, z20.d, #47
+	eor	z20.d, z1.d, z2.d
+	mul	z20.d, p7/m, z20.d, z16.d
+	add	x9, x9, #1
+	cmp	x9, x20
+	b.lt	0b
+1:
+	/*
+	 * nbStripes =
+	 * ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
+	 */
+	mul	x9, x6, x20	// overwrite x9 (n)
+	sub	x7, x7, x9
+	lsr	x3, x7, #6	// x3: nbStripes
+	mov	x2, x15		// x2: secret
+	add	x1, x13, x9	// x1: input
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	21f
+20:
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z17.d
+
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	calc_acc512 z18.d
+
+	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
+	calc_acc512 z19.d
+
+	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
+	calc_acc512 z20.d
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	20b
+21:
+	/* p = input + len - XXH_STRIPE_LEN; */
+	add	x1, x13, x14
+	sub	x1, x1, #64	// x1: p
+	/* secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START); */
+	add	x2, x15, x19
+	sub	x2, x2, #64
+	sub	x2, x2, #7
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z17.d
+
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	calc_acc512 z18.d
+
+	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
+	calc_acc512 z19.d
+
+	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
+	calc_acc512 z20.d
+
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
+	st1d	{z19.d}, p7, [x0, #2, MUL VL]
+	st1d	{z20.d}, p7, [x0, #3, MUL VL]
+
+	ldp	x19, x20, [sp, #16]
+	ldp	x21, x22, [sp, #32]
+	ldp	x29, x30, [sp], #48
+	ret
+END (XXH3_aarch64_sve128_internal_loop)
+
+/*
+ * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
+ *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
+ * Output Registers: None
+ * Modified Registers: p1, p7, z0-z7, z16-z18, x1-x4, x6-x17
+ */
+ENTRY (XXH3_aarch64_sve256_internal_loop)
+	stp	x29, x30, [sp, #-48]!
+	stp	x19, x20, [sp, #16]
+	stp	x21, x22, [sp, #32]
+	mov	x29, sp
+	ptrue	p7.d
+
+	/* save input parameters */
+	mov	x13, x1		// save input into x13
+	mov	x14, x2		// save len into x14
+	mov	x15, x3		// save secret into x15
+	mov	x19, x4		// save secretSize into x19
+	ldr_prime
+	ld1d	{z17.d}, p7/z, [x0]
+	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
+	mov	z16.d, x12	// save XXH3_PRIME_1
+
+	/*
+	 * prepare index
+	 * p7 and z7 are reserved to use.
+	 */
+	init_index
+
+	/*
+	 * nbStripesPerBlock =
+	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
+	 */
+	sub	x5, x4, #64
+	lsr	x5, x5, #3	// x5: nbStripesPerBlock
+	/* block_len = XXH_STRIPE_LEN * nbStripesPerBlock; */
+	lsl	x6, x5, #6	// x6: block_len
+	sub	x7, x2, #1	// x7: len - 1
+	/* nb_blocks = (len - 1) / block_len; */
+	udiv	x20, x7, x6	// x20: nb_blocks
+	mov	x9, xzr		// x9: n
+	cmp	x9, x20
+	b.ge	1f
+0:
+	mul	x1, x6, x9	// x1: n * block_len
+	add	x1, x1, x13	// x1: input + n * block_len
+	mov	x2, x15		// x2: secret
+	mov	x3, x5		// x3: nbStripesPerBlock
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	11f
+10:
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z17.d
+
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	calc_acc512 z18.d
+
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	10b
+11:
+
+	/* secret + secretSize - XXH_STRIPE_LEN */
+	add	x1, x15, x4
+	sub	x1, x1, #64
+	ld1d	{z1.d}, p7/z, [x1]
+	calc_scram	z17.d
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	calc_scram	z18.d
+	add	x9, x9, #1
+	cmp	x9, x20
+	b.lt	0b
+1:
+	/*
+	 * nbStripes =
+	 * ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
+	 */
+	mul	x9, x6, x20	// overwrite x9 (n)
+	sub	x7, x7, x9
+	lsr	x3, x7, #6	// x3: nbStripes
+	mov	x2, x15		// x2: secret
+	add	x1, x13, x9	// x1: input
+	mov	x10, xzr
+	cmp	x10, x3
+	b.ge	21f
+20:
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z17.d
+
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	calc_acc512 z18.d
+
+	add	x1, x1, #64
+	add	x2, x2, #8
+	add	x10, x10, #1
+	cmp	x10, x3
+	b.lt	20b
+21:
+	/* p = input + len - XXH_STRIPE_LEN; */
+	add	x1, x13, x14
+	sub	x1, x1, #64	// x1: p
+	/* secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START); */
+	add	x2, x15, x19
+	sub	x2, x2, #64
+	sub	x2, x2, #7
+	mov	w12, #0xffffffff
+	// set -1 in z4
+	mov	z3.d, x12
+	mov	z4.d, #32
+	ld1d	{z1.d}, p7/z, [x1]
+	ld1d	{z2.d}, p7/z, [x2]
+	calc_acc512 z17.d
+
+	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
+	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
+	calc_acc512 z18.d
+
+	st1d	{z17.d}, p7, [x0]
+	st1d	{z18.d}, p7, [x0, #1, MUL VL]
+
+	ldp	x19, x20, [sp, #16]
+	ldp	x21, x22, [sp, #32]
+	ldp	x29, x30, [sp], #48
+	ret
+END (XXH3_aarch64_sve256_internal_loop)
+
+/*
+ * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
+ *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
+ * Output Registers: None
  * Modified Registers: p1, p7, z0-z7, z16, x1-x4, x6-x17
  */
 ENTRY (XXH3_aarch64_sve512_internal_loop)
