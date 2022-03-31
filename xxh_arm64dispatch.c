@@ -1,6 +1,7 @@
 /*
  * xxHash - Extremely Fast Hash algorithm
- * Copyright (C) 2020-2021 Yann Collet
+ *
+ * Copyright (C) 2022 Linaro Ltd.
  *
  * BSD 2-Clause License (https://www.opensource.org/licenses/bsd-license.php)
  *
@@ -183,13 +184,17 @@ XXH_DEFINE_DISPATCH_FUNCS(sveasm)
 #endif
 
 #ifdef XXH_SVE_INTERNAL_LOOP
+typedef XXH64_hash_t (*XXH3_internal_loop)(xxh_u64* XXH_RESTRICT,
+                                           const xxh_u8* XXH_RESTRICT, size_t,
+                                           const xxh_u8* XXH_RESTRICT, size_t);
 XXH_FORCE_INLINE XXH64_hash_t
-XXH3_hashLong_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
-                                 const void* XXH_RESTRICT secret, size_t secretSize)
+XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
+                      const void* XXH_RESTRICT secret, size_t secretSize,
+                      XXH3_internal_loop f_loop)
 {
     XXH_ALIGN(XXH_ACC_ALIGN) xxh_u64 acc[XXH_ACC_NB] = XXH3_INIT_ACC;
 
-    XXH3_aarch64_sve512_internal_loop(acc, (const xxh_u8*)input, len, (const xxh_u8*)secret, secretSize);
+    f_loop(acc, (const xxh_u8*)input, len, (const xxh_u8*)secret, secretSize);
 
     /* converge into final hash */
     XXH_STATIC_ASSERT(sizeof(acc) == 64);
@@ -202,8 +207,17 @@ XXH3_hashLong_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
 XXH_FORCE_INLINE XXH64_hash_t
 XXHL64_asm_default_sve(const void* XXH_RESTRICT input, size_t len)
 {
-    return XXH3_hashLong_64b_internal_sve(input, len, XXH3_kSecret,
-                                          sizeof(XXH3_kSecret));
+    return XXH3_64b_internal_sve(input, len, XXH3_kSecret,
+                                 sizeof(XXH3_kSecret),
+                                 XXH3_aarch64_sve512_internal_loop);
+}
+
+XXH_FORCE_INLINE XXH64_hash_t
+XXHL64_asm_secret_sve(const void* XXH_RESTRICT input, size_t len,
+                      const void* XXH_RESTRICT secret, size_t secretLen)
+{
+    return XXH3_64b_internal_sve(input, len, secret, secretLen,
+                                 XXH3_aarch64_sve512_internal_loop);
 }
 
 XXH_FORCE_INLINE XXH64_hash_t
@@ -213,12 +227,14 @@ XXH3_hashLong_64b_withSeed_internal_sve(const void* input, size_t len,
 {
 #  if XXH_SIZE_OPT <= 0
     if (seed == 0)
-        return XXH3_hashLong_64b_internal_sve(input, len,
-                                          XXH3_kSecret, sizeof(XXH3_kSecret));
+        return XXH3_64b_internal_sve(input, len, XXH3_kSecret,
+                                     sizeof(XXH3_kSecret),
+                                     XXH3_aarch64_sve512_internal_loop);
 #  endif
     {   XXH_ALIGN(XXH_SEC_ALIGN) xxh_u8 secret[XXH_SECRET_DEFAULT_SIZE];
         f_initSec(secret, seed);
-        return XXH3_hashLong_64b_internal_sve(input, len, secret, sizeof(secret));
+        return XXH3_64b_internal_sve(input, len, secret, sizeof(secret),
+                                     XXH3_aarch64_sve512_internal_loop);
     }
 }
 
@@ -230,20 +246,14 @@ XXHL64_asm_seed_sve(const void* XXH_RESTRICT input, size_t len,
 }
 
 
-XXH_FORCE_INLINE XXH64_hash_t
-XXHL64_asm_secret_sve(const void* XXH_RESTRICT input, size_t len,
-                      const void* XXH_RESTRICT secret, size_t secretLen)
-{
-    return XXH3_hashLong_64b_internal_sve(input, len, secret, secretLen);
-}
-
 XXH_FORCE_INLINE XXH128_hash_t
-XXH3_hashLong_128b_internal_sve(const void* XXH_RESTRICT input, size_t len,
-                            const xxh_u8* XXH_RESTRICT secret, size_t secretSize)
+XXH3_128b_internal_sve(const void* XXH_RESTRICT input, size_t len,
+                       const xxh_u8* XXH_RESTRICT secret, size_t secretSize,
+                       XXH3_internal_loop f_loop)
 {
     XXH_ALIGN(XXH_ACC_ALIGN) xxh_u64 acc[XXH_ACC_NB] = XXH3_INIT_ACC;
 
-    XXH3_aarch64_sve512_internal_loop(acc, (const xxh_u8*)input, len, secret, secretSize);
+    f_loop(acc, (const xxh_u8*)input, len, secret, secretSize);
 
     /* converge into final hash */
     XXH_STATIC_ASSERT(sizeof(acc) == 64);
@@ -263,7 +273,17 @@ XXH3_hashLong_128b_internal_sve(const void* XXH_RESTRICT input, size_t len,
 XXH_FORCE_INLINE XXH128_hash_t
 XXHL128_asm_default_sve(const void* XXH_RESTRICT input, size_t len)
 {
-    return XXH3_hashLong_128b_internal_sve(input, len, XXH3_kSecret, sizeof(XXH3_kSecret));
+    return XXH3_128b_internal_sve(input, len, XXH3_kSecret,
+                                  sizeof(XXH3_kSecret),
+                                  XXH3_aarch64_sve512_internal_loop);
+}
+
+XXH_FORCE_INLINE XXH128_hash_t
+XXHL128_asm_secret_sve(const void* XXH_RESTRICT input, size_t len,
+                              const void* XXH_RESTRICT secret, size_t secretLen)
+{
+    return XXH3_128b_internal_sve(input, len, (const xxh_u8*)secret, secretLen,
+                                  XXH3_aarch64_sve512_internal_loop);
 }
 
 XXH_FORCE_INLINE XXH128_hash_t
@@ -272,11 +292,14 @@ XXH3_hashLong_128b_withSeed_internal_sve(const void* XXH_RESTRICT input, size_t 
                                 XXH3_f_initCustomSecret f_initSec)
 {
     if (seed64 == 0)
-        return XXH3_hashLong_128b_internal_sve(input, len,
-                                           XXH3_kSecret, sizeof(XXH3_kSecret));
+        return XXH3_128b_internal_sve(input, len, XXH3_kSecret,
+                                      sizeof(XXH3_kSecret),
+                                      XXH3_aarch64_sve512_internal_loop);
     {   XXH_ALIGN(XXH_SEC_ALIGN) xxh_u8 secret[XXH_SECRET_DEFAULT_SIZE];
         f_initSec(secret, seed64);
-        return XXH3_hashLong_128b_internal_sve(input, len, (const xxh_u8*)secret, sizeof(secret));
+        return XXH3_128b_internal_sve(input, len, (const xxh_u8*)secret,
+                                      sizeof(secret),
+                                      XXH3_aarch64_sve512_internal_loop);
     }
 }
 
@@ -286,13 +309,6 @@ XXHL128_asm_seed_sve(const void* input, size_t len,
 {
     return XXH3_hashLong_128b_withSeed_internal_sve(input, len, seed64,
                 XXH3_initCustomSecret);
-}
-
-XXH_FORCE_INLINE XXH128_hash_t
-XXHL128_asm_secret_sve(const void* XXH_RESTRICT input, size_t len,
-                              const void* XXH_RESTRICT secret, size_t secretLen)
-{
-    return XXH3_hashLong_128b_internal_sve(input, len, (const xxh_u8*)secret, secretLen);
 }
 #endif
 
