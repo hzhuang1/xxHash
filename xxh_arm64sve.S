@@ -38,18 +38,37 @@
 
 #define PRFO		128	/* prefetch offset */
 
-	// Since SVE support in C compilers is fairly new and not very optimized, the SVE routines
-	// are written in assembly.
+/*
+ * Since SVE support in C compilers is fairly new and not very optimized, the
+ * SVE routines are written in assembly.
+ * The code is to avoid loading/storing ACC from memory frequently. It could
+ * improve performance by this way.
+ */
 
-.macro init_index
+
+/*
+ * Create sequence [1,0,3,2,...].
+ */
+.macro INIT_INDEX
+	// create content [2,2,2,2] in z1
 	mov	z1.d, #2
+	// create content [0,0,0,0] in p1
 	pfalse	p1.b
+	// create sequence [1,2,3,4,...] in z7
 	index	z7.d, #1, #1
+	// convert content from [0,0,0,0] to [0,1,0,1] in p1
 	trn1	p1.d, p1.d, p7.d
+	// convert from sequence [1,2,3,4,...] to [1,0,3,2,...]
 	sub	z7.d, p1/m, z7.d, z1.d
 .endm
 
-.macro calc_acc512 acc
+/*
+ * Perform a single round of XXH_accumulate_512().
+ * \acc = XXH3_accumulate_512_round(\acc, LDR(x1, \memoffs), LDR(x2, \memoffs))
+ */
+.macro ACCRND acc, memoffs:vararg
+	ld1d	{z1.d}, p7/z, [x1, \memoffs]
+	ld1d	{z2.d}, p7/z, [x2, \memoffs]
 	// swapped = SWAP(input)
 	tbl	z5.d, {z1.d}, z7.d
 	// mixed = input EOR secret
@@ -65,14 +84,22 @@
 	add	\acc, p7/m, \acc, z1.d
 .endm
 
-.macro calc_scram acc
+/*
+ * Perform a single round of XXH3_scrambleAcc().
+ * \acc = XXH3_scrambleAcc(\acc, LDR(x1, \memoffs))
+ */
+.macro SCRAM acc, memoffs:vararg
+	ld1d	{z1.d}, p7/z, [x1, \memoffs]
 	eor	z1.d, \acc, z1.d
 	lsr	z5.d, \acc, #47
 	eor	\acc, z1.d, z5.d
 	mul	\acc, p7/m, \acc, z16.d
 .endm
 
-.macro ldr_prime
+/*
+ * Load the prime value into x12.
+ */
+.macro LDR_PRM
 	movz	x12, #0x9E37, LSL #16
 	mov	x10, #0x79B1
 	orr	x12, x12, x10
@@ -96,7 +123,7 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	mov	x14, x2		// save len into x14
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
-	ldr_prime
+	LDR_PRM
 	ld1d	{z17.d}, p7/z, [x0]
 	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
 	ld1d	{z19.d}, p7/z, [x0, #2, MUL VL]
@@ -107,7 +134,7 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	 * prepare index
 	 * p7 and z7 are reserved to use.
 	 */
-	init_index
+	INIT_INDEX
 
 	/*
 	 * nbStripesPerBlock =
@@ -128,6 +155,7 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	add	x1, x1, x13	// x1: input + n * block_len
 	mov	x2, x15		// x2: secret
 	mov	x3, x5		// x3: nbStripesPerBlock
+	/* start accumulate function */
 	mov	x10, xzr
 	cmp	x10, x3
 	b.ge	11f
@@ -136,51 +164,27 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z17.d
-
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z18.d
-
-	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z19.d
-
-	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z20.d
+	ACCRND	z17.d, #0, MUL VL
+	ACCRND	z18.d, #1, MUL VL
+	ACCRND	z19.d, #2, MUL VL
+	ACCRND	z20.d, #3, MUL VL
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
 	cmp	x10, x3
 	b.lt	10b
 11:
+	/* end accumulate function */
 
 	/* secret + secretSize - XXH_STRIPE_LEN */
 	add	x1, x15, x4
 	sub	x1, x1, #64
-	ld1d	{z1.d}, p7/z, [x1]
-	eor	z1.d, z17.d, z1.d
-	lsr	z2.d, z17.d, #47
-	eor	z17.d, z1.d, z2.d
-	mul	z17.d, p7/m, z17.d, z16.d
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	eor	z1.d, z18.d, z1.d
-	lsr	z2.d, z18.d, #47
-	eor	z18.d, z1.d, z2.d
-	mul	z18.d, p7/m, z18.d, z16.d
-	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
-	eor	z1.d, z19.d, z1.d
-	lsr	z2.d, z19.d, #47
-	eor	z19.d, z1.d, z2.d
-	mul	z19.d, p7/m, z19.d, z16.d
-	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
-	eor	z1.d, z20.d, z1.d
-	lsr	z2.d, z20.d, #47
-	eor	z20.d, z1.d, z2.d
-	mul	z20.d, p7/m, z20.d, z16.d
+	/* start scramble function */
+	SCRAM	z17.d, #0, MUL VL
+	SCRAM	z18.d, #1, MUL VL
+	SCRAM	z19.d, #2, MUL VL
+	SCRAM	z20.d, #3, MUL VL
+	/* end scramble function */
 	add	x9, x9, #1
 	cmp	x9, x20
 	b.lt	0b
@@ -202,21 +206,10 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z17.d
-
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z18.d
-
-	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z19.d
-
-	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z20.d
+	ACCRND	z17.d, #0, MUL VL
+	ACCRND	z18.d, #1, MUL VL
+	ACCRND	z19.d, #2, MUL VL
+	ACCRND	z20.d, #3, MUL VL
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -234,21 +227,10 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z17.d
-
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z18.d
-
-	ld1d	{z1.d}, p7/z, [x1, #2, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #2, MUL VL]
-	calc_acc512 z19.d
-
-	ld1d	{z1.d}, p7/z, [x1, #3, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #3, MUL VL]
-	calc_acc512 z20.d
+	ACCRND	z17.d, #0, MUL VL
+	ACCRND	z18.d, #1, MUL VL
+	ACCRND	z19.d, #2, MUL VL
+	ACCRND	z20.d, #3, MUL VL
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
@@ -279,7 +261,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	mov	x14, x2		// save len into x14
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
-	ldr_prime
+	LDR_PRM
 	ld1d	{z17.d}, p7/z, [x0]
 	ld1d	{z18.d}, p7/z, [x0, #1, MUL VL]
 	mov	z16.d, x12	// save XXH3_PRIME_1
@@ -288,7 +270,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	 * prepare index
 	 * p7 and z7 are reserved to use.
 	 */
-	init_index
+	INIT_INDEX
 
 	/*
 	 * nbStripesPerBlock =
@@ -309,6 +291,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	add	x1, x1, x13	// x1: input + n * block_len
 	mov	x2, x15		// x2: secret
 	mov	x3, x5		// x3: nbStripesPerBlock
+	/* start accumulate function */
 	mov	x10, xzr
 	cmp	x10, x3
 	b.ge	11f
@@ -317,13 +300,8 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z17.d
-
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z18.d
+	ACCRND	z17.d, #0, MUL VL
+	ACCRND	z18.d, #1, MUL VL
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -331,14 +309,15 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	cmp	x10, x3
 	b.lt	10b
 11:
+	/* end accumulate function */
 
 	/* secret + secretSize - XXH_STRIPE_LEN */
 	add	x1, x15, x4
 	sub	x1, x1, #64
-	ld1d	{z1.d}, p7/z, [x1]
-	calc_scram	z17.d
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	calc_scram	z18.d
+	/* start scramble function */
+	SCRAM	z17.d, #0, MUL VL
+	SCRAM	z18.d, #1, MUL VL
+	/* end scramble function */
 	add	x9, x9, #1
 	cmp	x9, x20
 	b.lt	0b
@@ -352,6 +331,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	lsr	x3, x7, #6	// x3: nbStripes
 	mov	x2, x15		// x2: secret
 	add	x1, x13, x9	// x1: input
+	/* start accumulate function */
 	mov	x10, xzr
 	cmp	x10, x3
 	b.ge	21f
@@ -360,13 +340,8 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z17.d
-
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z18.d
+	ACCRND	z17.d, #0, MUL VL
+	ACCRND	z18.d, #1, MUL VL
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -374,6 +349,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	cmp	x10, x3
 	b.lt	20b
 21:
+	/* end accumulate function */
 	/* p = input + len - XXH_STRIPE_LEN; */
 	add	x1, x13, x14
 	sub	x1, x1, #64	// x1: p
@@ -385,13 +361,8 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z17.d
-
-	ld1d	{z1.d}, p7/z, [x1, #1, MUL VL]
-	ld1d	{z2.d}, p7/z, [x2, #1, MUL VL]
-	calc_acc512 z18.d
+	ACCRND	z17.d, #0, MUL VL
+	ACCRND	z18.d, #1, MUL VL
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
@@ -419,7 +390,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	mov	x14, x2		// save len into x14
 	mov	x15, x3		// save secret into x15
 	mov	x19, x4		// save secretSize into x19
-	ldr_prime
+	LDR_PRM
 	mov	z16.d, x12	// save XXH3_PRIME_1 into z16
 
 	/*
@@ -427,7 +398,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	 * p7 and z7 are reserved to use.
 	 */
 	ptrue	p7.d, VL8
-	init_index
+	INIT_INDEX
 
 	ld1d	{z0.d}, p7/z, [x0]
 	/*
@@ -459,9 +430,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	b.ge	11f
 10:
 	/* start acc512 function */
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z0.d
+	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
 	add	x1, x1, #64
@@ -476,8 +445,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	add	x1, x15, x4
 	sub	x1, x1, #64
 	/* start scramble function */
-	ld1d	{z1.d}, p7/z, [x1]
-	calc_scram	z0.d
+	SCRAM	z0.d, #0, MUL VL
 	/* end scramble function */
 	add	x9, x9, #1
 	cmp	x9, x20
@@ -499,9 +467,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 20:
 	/* start acc512 function */
 	// z3 and z4 are initialized already
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z0.d
+	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
 	add	x1, x1, #64
@@ -520,9 +486,7 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	sub	x2, x2, #64
 	sub	x2, x2, #7
 	/* start acc512 function */
-	ld1d	{z1.d}, p7/z, [x1]
-	ld1d	{z2.d}, p7/z, [x2]
-	calc_acc512 z0.d
+	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
 	st1d	z0.d, p7, [x0]
