@@ -34,9 +34,8 @@
  */
 
 	.arch armv8-a+sve
-#include "asmdefs.h"
 
-#define PRFO		128	/* prefetch offset */
+#include "asmdefs.h"
 
 /*
  * Since SVE support in C compilers is fairly new and not very optimized, the
@@ -50,16 +49,9 @@
  * Create sequence [1,0,3,2,...].
  */
 .macro INIT_INDEX
-	// create content [2,2,2,2] in z1
-	mov	z1.d, #2
-	// create content [0,0,0,0] in p1
-	pfalse	p1.b
-	// create sequence [1,2,3,4,...] in z7
-	index	z7.d, #1, #1
-	// convert content from [0,0,0,0] to [0,1,0,1] in p1
-	trn1	p1.d, p1.d, p7.d
-	// convert from sequence [1,2,3,4,...] to [1,0,3,2,...]
-	sub	z7.d, p1/m, z7.d, z1.d
+	// set z7 to [ 1, 0, 3, 2, 5, 4, ... ] for tbl to swap adjacent lanes
+	index   z7.d, #0, #1        // z7 = [ 0, 1, 2, 3, 4, 5... ]
+	eor     z7.d, z7.d, #1      // z7 = [ 1, 0, 3, 2, 5, 4... ]
 .endm
 
 /*
@@ -67,21 +59,22 @@
  * \acc = XXH3_accumulate_512_round(\acc, LDR(x1, \memoffs), LDR(x2, \memoffs))
  */
 .macro ACCRND acc, memoffs:vararg
+	// load input
 	ld1d	{z1.d}, p7/z, [x1, \memoffs]
+	// load secret
 	ld1d	{z2.d}, p7/z, [x2, \memoffs]
+	// mixed = secret EOR input
+	eor	z2.d, p7/m, z2.d, z1.d
 	// swapped = SWAP(input)
-	tbl	z5.d, {z1.d}, z7.d
-	// mixed = input EOR secret
-	eor	z1.d, p7/m, z1.d, z2.d
-	mov	z6.d, z1.d
-	// mixed_lo = mixed AND 0xffffffff
-	and	z1.d, p7/m, z1.d, z3.d
+	tbl	z1.d, {z1.d}, z7.d
+	// mixed_lo = mixed AND 0xffffffff (technically (u64)(u32) mixed)
+	uxtw	z6.d, p7/m, z2.d
 	// mixed_hi = mixed >> 32
-	lsr	z6.d, p7/m, z6.d, z4.d
-	// mixed_lo = mixed_hi * acc + mixed_lo
-	mad	z1.d, p7/m, z6.d, z5.d
-	// acc = mixed_lo + swapped
-	add	\acc, p7/m, \acc, z1.d
+	lsr	z2.d, p7/m, z2.d, #32
+	// mixed_lo = mixed_hi * mixed_lo + swapped (distributive property)
+	mad	z2.d, p7/m, z6.d, z1.d
+	// acc += mixed_lo
+	add	\acc, p7/m, \acc, z2.d
 .endm
 
 /*
@@ -105,13 +98,14 @@
 	orr	x12, x12, x10
 .endm
 
+
 /*
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
  *                  x3 (input), x4 (nbStripes), x5 (secret), x6 (secretLimit)
  * Output Registers: None
  * Modified Registers: p1, p7, z0-z7, z16-z20, x1-x4, x6-x17
  */
-ENTRY (XXH3_aarch64_sve128_internal_loop)
+ENTRY (XXH3_sve128_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
@@ -241,7 +235,7 @@ ENTRY (XXH3_aarch64_sve128_internal_loop)
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
 	ret
-END (XXH3_aarch64_sve128_internal_loop)
+END (XXH3_sve128_internal_loop)
 
 /*
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
@@ -249,7 +243,7 @@ END (XXH3_aarch64_sve128_internal_loop)
  * Output Registers: None
  * Modified Registers: p1, p7, z0-z7, z16-z18, x1-x4, x6-x17
  */
-ENTRY (XXH3_aarch64_sve256_internal_loop)
+ENTRY (XXH3_sve256_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
@@ -371,7 +365,7 @@ ENTRY (XXH3_aarch64_sve256_internal_loop)
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
 	ret
-END (XXH3_aarch64_sve256_internal_loop)
+END (XXH3_sve256_internal_loop)
 
 /*
  * Input Registers: x0 (acc), x1 (nbStripeSoFarPtr), x2 (nbStripesPerBlock),
@@ -379,7 +373,7 @@ END (XXH3_aarch64_sve256_internal_loop)
  * Output Registers: None
  * Modified Registers: p1, p7, z0-z7, z16, x1-x4, x6-x17
  */
-ENTRY (XXH3_aarch64_sve512_internal_loop)
+ENTRY (XXH3_sve512_internal_loop)
 	stp	x29, x30, [sp, #-48]!
 	stp	x19, x20, [sp, #16]
 	stp	x21, x22, [sp, #32]
@@ -494,4 +488,4 @@ ENTRY (XXH3_aarch64_sve512_internal_loop)
 	ldp	x21, x22, [sp, #32]
 	ldp	x29, x30, [sp], #48
 	ret
-END (XXH3_aarch64_sve512_internal_loop)
+END (XXH3_sve512_internal_loop)
