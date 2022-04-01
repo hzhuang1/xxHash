@@ -97,6 +97,11 @@ all: lib xxhsum xxhsum_inlinedXXH
 ifeq ($(DISPATCH),1)
 xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
 xxhsum: xxh_x86dispatch.o
+DISPATCH_HEADERS = xxh_x86dispatch.h
+else ifeq ($(ARM64_DISPATCH),1)
+xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
+xxhsum: xxh_arm64dispatch.o xxh_arm64sve.o
+DISPATCH_HEADERS = xxh_arm64dispatch.h
 endif
 xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
@@ -112,8 +117,11 @@ dispatch: xxhash.o xxh_x86dispatch.o $(XXHSUM_SPLIT_SRCS)
 
 xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
-    xxhash.h xxh_x86dispatch.h
+    xxhash.h $(DISPATCH_HEADERS)
 xxh_x86dispatch.o: xxh_x86dispatch.c xxh_x86dispatch.h xxhash.h
+xxh_arm64dispatch.o: xxh_arm64dispatch.c xxh_arm64dispatch.h xxhash.h
+xxh_arm64sve.o: xxh_arm64sve.S
+	$(CC) $(FLAGS) -o xxh_arm64sve.o -c xxh_arm64sve.S
 
 .PHONY: xxhsum_and_links
 xxhsum_and_links: xxhsum xxh32sum xxh64sum xxh128sum
@@ -138,6 +146,8 @@ $(LIBXXH): CFLAGS += -fPIC
 endif
 ifeq ($(DISPATCH),1)
 $(LIBXXH): xxh_x86dispatch.c
+else ifeq ($(ARM64_DISPATCH),1)
+$(LIBXXH): xxh_arm64dispatch.c
 endif
 $(LIBXXH): xxhash.c
 	$(CC) $(FLAGS) $^ $(LDFLAGS) $(SONAME_FLAGS) -o $@
