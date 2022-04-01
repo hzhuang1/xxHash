@@ -35,6 +35,9 @@ TESTHASHES = 110000000
 
 HASH_SRC := $(sort $(wildcard allcodecs/*.c allcodecs/*.cc))
 HASH_OBJ := $(patsubst %.c,%.o,$(HASH_SRC))
+ifeq ($(ARM64_DISPATCH),1)
+HASH_OBJ += xxh_arm64dispatch.o xxh_arm64sve.o
+endif
 
 
 .PHONY: default
@@ -47,6 +50,13 @@ collisionsTest: main.o pool.o threading.o sort.o $(HASH_OBJ)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 
 main.o: hashes.h xxhash.h
+
+ifeq ($(ARM64_DISPATCH),1)
+xxh_arm64dispatch.o: ../../xxh_arm64dispatch.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
+xxh_arm64sve.o: ../../xxh_arm64sve.S
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
+endif
 
 release: CXXFLAGS += -O3
 release: CFLAGS += -O3
