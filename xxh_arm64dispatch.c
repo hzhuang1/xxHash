@@ -65,17 +65,10 @@ extern "C" {
 #    if ((defined(__GNUC__) || defined(__clang__)) \
        && defined(__ARM_FEATURE_SVE))
 #        define XXH_DISPATCH_SVE        1
-#        define XXH_SVE_INTERNAL_LOOP   1
 #    else
 #        define XXH_DISPATCH_SVE        0
 #    endif
 #endif
-
-extern void
-XXH3_accumulate_sveasm(xxh_u64* XXH_RESTRICT acc,
-                       const xxh_u8* XXH_RESTRICT input,
-                       const xxh_u8* XXH_RESTRICT secret,
-                       size_t nbStripes);
 
 extern XXH64_hash_t
 XXH3_aarch64_sve128_internal_loop(xxh_u64* XXH_RESTRICT acc,
@@ -191,11 +184,7 @@ XXHL128_seed_##suffix(const void* XXH_RESTRICT input, size_t len,             \
 
 XXH_DEFINE_DISPATCH_FUNCS(scalar)
 XXH_DEFINE_DISPATCH_FUNCS(neon)
-#if XXH_DISPATCH_SVE && !defined(XXH_SVE_INTERNAL_LOOP)
-XXH_DEFINE_DISPATCH_FUNCS(sveasm)
-#endif
 
-#ifdef XXH_SVE_INTERNAL_LOOP
 typedef XXH64_hash_t (*XXH3_internal_loop)(xxh_u64* XXH_RESTRICT,
                                            const xxh_u8* XXH_RESTRICT, size_t,
                                            const xxh_u8* XXH_RESTRICT, size_t);
@@ -214,7 +203,7 @@ XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
     /* converge into final hash */
     XXH_STATIC_ASSERT(sizeof(acc) == 64);
     /* do not align on 8, so that the secret is different from the accumulator */
-#  define XXH_SECRET_MERGEACCS_START 11
+#define XXH_SECRET_MERGEACCS_START 11
     XXH_ASSERT(secretSize >= sizeof(acc) + XXH_SECRET_MERGEACCS_START);
     return XXH3_mergeAccs(acc, (const xxh_u8*)secret + XXH_SECRET_MERGEACCS_START, (xxh_u64)len * XXH_PRIME64_1);
 }
@@ -238,11 +227,11 @@ XXH3_hashLong_64b_withSeed_internal_sve(const void* input, size_t len,
                                     XXH64_hash_t seed,
                                     XXH3_f_initCustomSecret f_initSec)
 {
-#  if XXH_SIZE_OPT <= 0
+#if XXH_SIZE_OPT <= 0
     if (seed == 0)
         return XXH3_64b_internal_sve(input, len, XXH3_kSecret,
                                      sizeof(XXH3_kSecret));
-#  endif
+#endif
     {   XXH_ALIGN(XXH_SEC_ALIGN) xxh_u8 secret[XXH_SECRET_DEFAULT_SIZE];
         f_initSec(secret, seed);
         return XXH3_64b_internal_sve(input, len, secret, sizeof(secret));
@@ -316,7 +305,6 @@ XXHL128_asm_seed_sve(const void* input, size_t len,
     return XXH3_hashLong_128b_withSeed_internal_sve(input, len, seed64,
                 XXH3_initCustomSecret);
 }
-#endif
 
 /* ====    Dispatchers    ==== */
 
@@ -347,11 +335,7 @@ static const XXH_dispatchFunctions_s XXH_kDispatch[XXH_NB_DISPATCHES] = {
     /* Scalar */ { XXHL64_default_scalar,  XXHL64_seed_scalar,  XXHL64_secret_scalar,  XXH3_update_scalar },
     /* NEON   */ { XXHL64_default_neon,    XXHL64_seed_neon,    XXHL64_secret_neon,    XXH3_update_neon },
 #if XXH_DISPATCH_SVE
-#  ifndef XXH_SVE_INTERNAL_LOOP
-    /* SVE    */ { XXHL64_default_sveasm,  XXHL64_seed_sveasm,  XXHL64_secret_sveasm,  XXH3_update_sveasm },
-#  else
-                 { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_update_scalar },
-#  endif
+    /* SVE    */ { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_update_scalar },
 #else
                  { NULL,                   NULL,                NULL,                  NULL }
 #endif
@@ -388,11 +372,7 @@ static const XXH_dispatch128Functions_s XXH_kDispatch128[XXH_NB_DISPATCHES] = {
     /* Scalar */ { XXHL128_default_scalar,  XXHL128_seed_scalar,  XXHL128_secret_scalar,  XXH3_update_scalar },
     /* NEON   */ { XXHL128_default_neon,    XXHL128_seed_neon,    XXHL128_secret_neon,    XXH3_update_neon },
 #if XXH_DISPATCH_SVE
-#  ifndef XXH_SVE_INTERNAL_LOOP
-    /* SVE    */ { XXHL128_default_sveasm,  XXHL128_seed_sveasm,  XXHL128_secret_sveasm,  XXH3_update_sveasm },
-#  else
-                 { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve,     XXH3_update_scalar },
-#  endif
+    /* SVE    */ { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve,     XXH3_update_scalar },
 #else
                  { NULL,                    NULL,                 NULL,                   NULL }
 #endif
