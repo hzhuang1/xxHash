@@ -81,6 +81,11 @@ XXH3_sve512_internal_loop(xxh_u64* XXH_RESTRICT acc,
                           const xxh_u8* XXH_RESTRICT secret,
                           size_t secretSize);
 
+extern XXH64_hash_t
+XXH3_sve512_internal(xxh_u64* XXH_RESTRICT,
+		     const void* XXH_RESTRICT, size_t,
+		     const void* XXH_RESTRICT, size_t);
+
 /* ===   Vector implementations   === */
 
 /*!
@@ -181,8 +186,34 @@ typedef XXH64_hash_t (*XXH3_internal_loop)(xxh_u64* XXH_RESTRICT,
                                            const xxh_u8* XXH_RESTRICT, size_t,
                                            const xxh_u8* XXH_RESTRICT, size_t);
 
-static XXH3_internal_loop XXH_g_loop = NULL;
+typedef XXH64_hash_t (*XXH3_64b_internal)(xxh_u64* XXH_RESTRICT,
+					  const void* XXH_RESTRICT, size_t,
+                                          const void* XXH_RESTRICT, size_t);
 
+static XXH3_internal_loop XXH_g_loop = NULL;
+static XXH3_64b_internal XXH_g_internal = NULL;
+
+#define BIG_LOOP
+#ifdef BIG_LOOP
+XXH_FORCE_INLINE XXH64_hash_t
+XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
+                      const void* XXH_RESTRICT secret, size_t secretSize)
+{
+    XXH_ALIGN(XXH_ACC_ALIGN) xxh_u64 acc[XXH_ACC_NB] = XXH3_INIT_ACC;
+
+    return XXH_g_internal(acc, (const xxh_u8*)input, len,
+                          (const xxh_u8*)secret, secretSize);
+
+#if 0
+    /* converge into final hash */
+    XXH_STATIC_ASSERT(sizeof(acc) == 64);
+    /* do not align on 8, so that the secret is different from the accumulator */
+#  define XXH_SECRET_MERGEACCS_START 11
+    XXH_ASSERT(secretSize >= sizeof(acc) + XXH_SECRET_MERGEACCS_START);
+    return XXH3_mergeAccs(acc, (const xxh_u8*)secret + XXH_SECRET_MERGEACCS_START, (xxh_u64)len * XXH_PRIME64_1);
+#endif
+}
+#else
 XXH_FORCE_INLINE XXH64_hash_t
 XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
                       const void* XXH_RESTRICT secret, size_t secretSize)
@@ -199,6 +230,7 @@ XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
     XXH_ASSERT(secretSize >= sizeof(acc) + XXH_SECRET_MERGEACCS_START);
     return XXH3_mergeAccs(acc, (const xxh_u8*)secret + XXH_SECRET_MERGEACCS_START, (xxh_u64)len * XXH_PRIME64_1);
 }
+#endif
 
 XXH_FORCE_INLINE XXH64_hash_t
 XXHL64_asm_default_sve(const void* XXH_RESTRICT input, size_t len)
@@ -393,12 +425,15 @@ static void XXH_setDispatch(void)
 		switch (sve) {
 		case 2:
 			XXH_g_loop = XXH3_sve128_internal_loop;
+			//XXH_g_internal = XXH3_sve128_internal;
 			break;
 		case 4:
 			XXH_g_loop = XXH3_sve256_internal_loop;
+			//XXH_g_internal = XXH3_sve256_internal;
 			break;
 		default:
 			XXH_g_loop = XXH3_sve512_internal_loop;
+			XXH_g_internal = XXH3_sve512_internal;
 			break;
 		}
 		XXH_g_dispatch = XXH_kDispatch[2];
