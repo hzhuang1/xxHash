@@ -159,7 +159,9 @@ XXHL128_seed_##suffix(const void* XXH_RESTRICT input, size_t len,             \
 #  define XXH3_initCustomSecret_neon   XXH3_initCustomSecret_scalar
 
 XXH_DEFINE_DISPATCH_FUNCS(scalar)
+#  if XXH_VECTOR == XXH_NEON
 XXH_DEFINE_DISPATCH_FUNCS(neon)
+#  endif
 
 typedef XXH64_hash_t (*XXH3_internal_loop)(xxh_u64* XXH_RESTRICT,
                                            const xxh_u8* XXH_RESTRICT, size_t,
@@ -374,7 +376,6 @@ static XXH_dispatch128Functions_s XXH_g_dispatch128 = { NULL, NULL, NULL, NULL }
  */
 static void XXH_setDispatch(void)
 {
-#error "hi"
 #if XXH_VECTOR == XXH_SVE
 	XXH_g_dispatch = XXH_kDispatch[2];
 	XXH_g_dispatch128 = XXH_kDispatch128[2];
