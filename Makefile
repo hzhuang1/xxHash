@@ -47,6 +47,7 @@ CFLAGS += $(DEBUGFLAGS) $(MOREFLAGS)
 FLAGS   = $(CFLAGS) $(CPPFLAGS)
 XXHSUM_VERSION = $(LIBVER)
 UNAME := $(shell uname)
+UNAME_ARCH := $(shell uname -p)
 
 # Define *.exe as extension for Windows systems
 ifneq (,$(filter Windows%,$(OS)))
@@ -67,6 +68,22 @@ else
 	SHARED_EXT = so
 	SHARED_EXT_MAJOR = $(SHARED_EXT).$(LIBVER_MAJOR)
 	SHARED_EXT_VER = $(SHARED_EXT).$(LIBVER)
+endif
+
+ifeq ($(UNAME), Darwin)
+	ifeq ($(UNAME_ARCH), i386)
+		DISPATCH_ARCH = x86_64
+	endif
+	ifeq ($(UNAME_ARCH), arm)
+		DISPATCH_ARCH = aarch64
+	endif
+else
+	ifeq ($(UNAME_ARCH), x86_64)
+		DISPATCH_ARCH = x86_64
+	endif
+	ifeq ($(UNAME_ARCH), aarch64)
+		DISPATCH_ARCH = aarch64
+	endif
 endif
 
 LIBXXH = libxxhash.$(SHARED_EXT_VER)
@@ -95,8 +112,16 @@ all: lib xxhsum xxhsum_inlinedXXH
 
 ## xxhsum is the command line interface (CLI)
 ifeq ($(DISPATCH),1)
+ifeq ($(DISPATCH_ARCH), x86_64)
 xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
 xxhsum: xxh_x86dispatch.o
+DISPATCH_HEADERS = xxh_x86dispatch.h
+endif
+ifeq ($(DISPATCH_ARCH), aarch64)
+xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
+xxhsum: xxh_arm64dispatch.o xxh_arm64sve.o
+DISPATCH_HEADERS = xxh_arm64dispatch.h
+endif
 endif
 xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
@@ -105,15 +130,20 @@ xxhsum32: CFLAGS += -m32  ## generate CLI in 32-bits mode
 xxhsum32: xxhash.c $(XXHSUM_SPLIT_SRCS) ## do not generate object (avoid mixing different ABI)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
 
+ifeq ($(DISPATCH_ARCH), x86_64)
 ## dispatch only works for x86/x64 systems
 dispatch: CPPFLAGS += -DXXHSUM_DISPATCH=1
 dispatch: xxhash.o xxh_x86dispatch.o $(XXHSUM_SPLIT_SRCS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
+endif
 
 xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
-    xxhash.h xxh_x86dispatch.h
+    xxhash.h $(DISPATCH_HEADERS)
 xxh_x86dispatch.o: xxh_x86dispatch.c xxh_x86dispatch.h xxhash.h
+xxh_arm64dispatch.o: xxh_arm64dispatch.c xxh_arm64dispatch.h xxhash.h
+xxh_arm64sve.o: xxh_arm64sve.S
+	$(CC) $(FLAGS) -o xxh_arm64sve.o -c xxh_arm64sve.S
 
 .PHONY: xxhsum_and_links
 xxhsum_and_links: xxhsum xxh32sum xxh64sum xxh128sum
@@ -137,7 +167,12 @@ ifeq (,$(filter Windows%,$(OS)))
 $(LIBXXH): CFLAGS += -fPIC
 endif
 ifeq ($(DISPATCH),1)
+ifeq ($(DISPATCH_ARCH), x86_64)
 $(LIBXXH): xxh_x86dispatch.c
+endif
+ifeq ($(DISPATCH_ARCH), aarch64)
+$(LIBXXH): xxh_arm64dispatch.c
+endif
 endif
 $(LIBXXH): xxhash.c
 	$(CC) $(FLAGS) $^ $(LDFLAGS) $(SONAME_FLAGS) -o $@
@@ -530,7 +565,11 @@ install_libxxhash: libxxhash
 	$(Q)$(INSTALL_DATA) xxhash.h $(DESTDIR)$(INCLUDEDIR)
 	$(Q)$(INSTALL_DATA) xxh3.h $(DESTDIR)$(INCLUDEDIR) # for compatibility, will be removed in v0.9.0
 ifeq ($(DISPATCH),1)
+ifeq ($(DISPATCH_ARCH), x86_64)
 	$(Q)$(INSTALL_DATA) xxh_x86dispatch.h $(DESTDIR)$(INCLUDEDIR)
+endif
+ifeq ($(DISPATCH_ARCH), aarch64)
+	$(Q)$(INSTALL_DATA) xxh_arm64dispatch.h $(DESTDIR)$(INCLUDEDIR)
 endif
 
 install_libxxhash.pc: libxxhash.pc
