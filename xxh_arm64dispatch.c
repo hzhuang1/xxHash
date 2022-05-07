@@ -376,16 +376,29 @@ static XXH_dispatch128Functions_s XXH_g_dispatch128 = { NULL, NULL, NULL, NULL }
  */
 static void XXH_setDispatch(void)
 {
-#if XXH_VECTOR == XXH_SVE
+#  if XXH_VECTOR == XXH_SVE
+	uint64_t sve;
+	__asm__ __volatile__("cntd %0" : "=r"(sve));
+	switch (sve) {
+	case 2:
+		XXH_g_loop = XXH3_sve128_internal_loop;
+		break;
+	case 4:
+		XXH_g_loop = XXH3_sve256_internal_loop;
+		break;
+	default:
+		XXH_g_loop = XXH3_sve512_internal_loop;
+		break;
+	}
 	XXH_g_dispatch = XXH_kDispatch[2];
 	XXH_g_dispatch128 = XXH_kDispatch128[2];
-#elif XXH_VECTOR == XXH_NEON
+#  elif XXH_VECTOR == XXH_NEON
 	XXH_g_dispatch = XXH_kDispatch[1];
 	XXH_g_dispatch128 = XXH_kDispatch128[1];
-#else
+#  else
 	XXH_g_dispatch = XXH_kDispatch[0];
 	XXH_g_dispatch128 = XXH_kDispatch128[0];
-#endif
+#  endif
 	return;
 }
 

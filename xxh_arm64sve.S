@@ -450,10 +450,10 @@ ENTRY (XXH3_sve512_internal_loop)
 	 * ((len - 1) - (block_len * nb_blocks)) / XXH_STRIPE_LEN;
 	 */
 	mul	x9, x6, x20	// overwrite x9 (n)
-	sub	x7, x7, x9
-	lsr	x3, x7, #6	// x3: nbStripes
 	mov	x2, x15		// x2: secret
+	sub	x7, x7, x9
 	add	x1, x13, x9	// x1: input
+	lsr	x3, x7, #6	// x3: nbStripes
 	/* start accumulate function */
 	mov	x10, xzr
 	cmp	x10, x3
@@ -477,8 +477,7 @@ ENTRY (XXH3_sve512_internal_loop)
 	sub	x1, x1, #64	// x1: p
 	/* secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START); */
 	add	x2, x15, x19
-	sub	x2, x2, #64
-	sub	x2, x2, #7
+	sub	x2, x2, #71	// 64 + 7
 	/* start acc512 function */
 	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
