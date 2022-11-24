@@ -424,6 +424,7 @@ ENTRY (XXH3_sve512_internal_loop)
 	b.ge	11f
 10:
 	/* start acc512 function */
+	PRFD	PLDL1STRM, p7, [z1.d, #128]
 	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
@@ -461,6 +462,7 @@ ENTRY (XXH3_sve512_internal_loop)
 20:
 	/* start acc512 function */
 	// z3 and z4 are initialized already
+	PRFD	PLDL1STRM, p7, [z1.d, #128]
 	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
@@ -479,6 +481,7 @@ ENTRY (XXH3_sve512_internal_loop)
 	add	x2, x15, x19
 	sub	x2, x2, #71	// 64 + 7
 	/* start acc512 function */
+	PRFD	PLDL1STRM, p7, [z1.d, #128]
 	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
