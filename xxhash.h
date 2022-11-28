@@ -4690,9 +4690,9 @@ XXH3_accumulate_512_vsx(  void* XXH_RESTRICT acc,
 
         /* swap high and low halves */
 #ifdef __s390x__
-        acc_vec += vec_permi(data_vec, data_vec, 2);
+        //acc_vec += vec_permi(data_vec, data_vec, 2);
 #else
-        acc_vec += vec_xxpermdi(data_vec, data_vec, 2);
+        //acc_vec += vec_xxpermdi(data_vec, data_vec, 2);
 #endif
         /* xacc[i] = acc_vec; */
         vec_xst((xxh_u32x4)acc_vec, 0, xacc + 4 * i);
