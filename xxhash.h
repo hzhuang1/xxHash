@@ -5089,7 +5089,7 @@ XXH3_hashLong_internal_loop(xxh_u64* XXH_RESTRICT acc,
         /* last stripe */
         {   const xxh_u8* const p = input + len - XXH_STRIPE_LEN;
 #define XXH_SECRET_LASTACC_START 7  /* not aligned on 8, last secret is different from acc & scrambler */
-            XXH3_accumulate_512(acc, p, secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START);
+            f_acc(acc, p, secret + secretSize - XXH_STRIPE_LEN - XXH_SECRET_LASTACC_START, 1);
     }   }
 }
 
