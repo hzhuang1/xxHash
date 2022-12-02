@@ -399,7 +399,7 @@ jobs:
       if: ${{ matrix.name == 'S390X' }}
       run: |
         CPPFLAGS="-DXXH_VECTOR=XXH_SCALAR" LDFLAGS="-static" CC=$XCC RUN_ENV=$XEMU make clean check
-        CPPFLAGS=-DXXH_VECTOR=XXH_VSX CFLAGS="-O3 -march=z13 -mzvector" LDFLAGS="-static" CC=$XCC RUN_ENV="$XEMU -cpu max" make clean check
+        CPPFLAGS=-DXXH_VECTOR=XXH_VSX CFLAGS="-O2 -march=z13 -mzvector" LDFLAGS="-static" CC=$XCC RUN_ENV="$XEMU -cpu max" make clean check
 
     - name: MIPS (XXH_VECTOR=[ scalar ])
       if: ${{ matrix.name == 'MIPS' }}
