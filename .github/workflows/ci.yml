@@ -69,10 +69,10 @@ jobs:
           #   os      : GitHub Actions YAML workflow label.  See https://github.com/actions/virtual-environments#available-environments
 
           # cc
-          { pkgs: '',                                  cc: cc,        cxx: c++,         avx512: 'true',  os: ubuntu-latest, },
+          { pkgs: '',                                  cc: cc,        cxx: c++,         avx512: 'true',  os: ubuntu-22.04, },
 
           # gcc
-          { pkgs: '',                                  cc: gcc,       cxx: g++,         avx512: 'true',  os: ubuntu-latest, },
+          { pkgs: '',                                  cc: gcc,       cxx: g++,         avx512: 'true',  os: ubuntu-22.04, },
           { pkgs: 'gcc-11  g++-11  lib32gcc-11-dev',   cc: gcc-11,    cxx: g++-11,      avx512: 'true',  os: ubuntu-20.04,  },
           { pkgs: 'gcc-10  g++-10  lib32gcc-10-dev',   cc: gcc-10,    cxx: g++-10,      avx512: 'true',  os: ubuntu-20.04,  },
           { pkgs: 'gcc-9   g++-9   lib32gcc-9-dev',    cc: gcc-9,     cxx: g++-9,       avx512: 'true',  os: ubuntu-20.04,  },
@@ -83,7 +83,7 @@ jobs:
           { pkgs: 'gcc-4.8 g++-4.8 lib32gcc-4.8-dev ', cc: gcc-4.8,   cxx: g++-4.8,     avx512: 'false', os: ubuntu-18.04,  },
 
           # clang
-          { pkgs: '',                                  cc: clang,     cxx: clang++,     avx512: 'true',  os: ubuntu-latest, },
+          { pkgs: '',                                  cc: clang,     cxx: clang++,     avx512: 'true',  os: ubuntu-22.04, },
           { pkgs: 'clang-12',                          cc: clang-12,  cxx: clang++-12,  avx512: 'true',  os: ubuntu-20.04,  },
           { pkgs: 'clang-11',                          cc: clang-11,  cxx: clang++-11,  avx512: 'true',  os: ubuntu-20.04,  },
           { pkgs: 'clang-10',                          cc: clang-10,  cxx: clang++-10,  avx512: 'true',  os: ubuntu-20.04,  },
@@ -169,7 +169,7 @@ jobs:
 
   ubuntu-consistency:
     name: Linux x64 check results consistency
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3 # https://github.com/actions/checkout
 
@@ -208,7 +208,7 @@ jobs:
 
   ubuntu-misc:
     name: Linux x64 misc tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3 # https://github.com/actions/checkout
 
@@ -251,7 +251,7 @@ jobs:
 
   ubuntu-cmake-unofficial:
     name: Linux x64 cmake unofficial build test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3 # https://github.com/actions/checkout
 
@@ -302,13 +302,13 @@ jobs:
       fail-fast: false  # 'false' means Don't stop matrix workflows even if some matrix failed.
       matrix:
         include: [
-          { name: 'ARM',             xcc_pkg: gcc-arm-linux-gnueabi,        xcc: arm-linux-gnueabi-gcc,        xemu_pkg: qemu-system-arm,   xemu: qemu-arm-static,     os: ubuntu-latest, },
-          { name: 'ARM64',           xcc_pkg: gcc-aarch64-linux-gnu,        xcc: aarch64-linux-gnu-gcc,        xemu_pkg: qemu-system-arm,   xemu: qemu-aarch64-static, os: ubuntu-latest, },
-          { name: 'PPC64LE',         xcc_pkg: gcc-powerpc64le-linux-gnu,    xcc: powerpc64le-linux-gnu-gcc,    xemu_pkg: qemu-system-ppc,   xemu: qemu-ppc64le-static, os: ubuntu-latest, },
-          { name: 'PPC64',           xcc_pkg: gcc-powerpc64-linux-gnu,      xcc: powerpc64-linux-gnu-gcc,      xemu_pkg: qemu-system-ppc,   xemu: qemu-ppc64-static,   os: ubuntu-latest, },
-          { name: 'S390X',           xcc_pkg: gcc-s390x-linux-gnu,          xcc: s390x-linux-gnu-gcc,          xemu_pkg: qemu-system-s390x, xemu: qemu-s390x-static,   os: ubuntu-latest, },
-          { name: 'MIPS',            xcc_pkg: gcc-mips-linux-gnu,           xcc: mips-linux-gnu-gcc,           xemu_pkg: qemu-system-mips,  xemu: qemu-mips-static,    os: ubuntu-latest, },
-          { name: 'M68K',            xcc_pkg: gcc-m68k-linux-gnu,           xcc: m68k-linux-gnu-gcc,           xemu_pkg: qemu-system-m68k,  xemu: qemu-m68k-static,    os: ubuntu-latest, },
+          { name: 'ARM',             xcc_pkg: gcc-arm-linux-gnueabi,        xcc: arm-linux-gnueabi-gcc,        xemu_pkg: qemu-system-arm,   xemu: qemu-arm-static,     os: ubuntu-22.04, },
+          { name: 'ARM64',           xcc_pkg: gcc-aarch64-linux-gnu,        xcc: aarch64-linux-gnu-gcc,        xemu_pkg: qemu-system-arm,   xemu: qemu-aarch64-static, os: ubuntu-22.04, },
+          { name: 'PPC64LE',         xcc_pkg: gcc-powerpc64le-linux-gnu,    xcc: powerpc64le-linux-gnu-gcc,    xemu_pkg: qemu-system-ppc,   xemu: qemu-ppc64le-static, os: ubuntu-22.04, },
+          { name: 'PPC64',           xcc_pkg: gcc-powerpc64-linux-gnu,      xcc: powerpc64-linux-gnu-gcc,      xemu_pkg: qemu-system-ppc,   xemu: qemu-ppc64-static,   os: ubuntu-22.04, },
+          { name: 'S390X',           xcc_pkg: gcc-s390x-linux-gnu,          xcc: s390x-linux-gnu-gcc,          xemu_pkg: qemu-system-s390x, xemu: qemu-s390x-static,   os: ubuntu-22.04, },
+          { name: 'MIPS',            xcc_pkg: gcc-mips-linux-gnu,           xcc: mips-linux-gnu-gcc,           xemu_pkg: qemu-system-mips,  xemu: qemu-mips-static,    os: ubuntu-22.04, },
+          { name: 'M68K',            xcc_pkg: gcc-m68k-linux-gnu,           xcc: m68k-linux-gnu-gcc,           xemu_pkg: qemu-system-m68k,  xemu: qemu-m68k-static,    os: ubuntu-22.04, },
 
           { name: 'ARM, gcc-10',     xcc_pkg: gcc-10-arm-linux-gnueabi,     xcc: arm-linux-gnueabi-gcc-10,     xemu_pkg: qemu-system-arm,   xemu: qemu-arm-static,     os: ubuntu-20.04, },
           { name: 'ARM64, gcc-10',   xcc_pkg: gcc-10-aarch64-linux-gnu,     xcc: aarch64-linux-gnu-gcc-10,     xemu_pkg: qemu-system-arm,   xemu: qemu-aarch64-static, os: ubuntu-20.04, },
@@ -399,7 +399,7 @@ jobs:
       if: ${{ matrix.name == 'S390X' }}
       run: |
         CPPFLAGS="-DXXH_VECTOR=XXH_SCALAR" LDFLAGS="-static" CC=$XCC RUN_ENV=$XEMU make clean check
-        CPPFLAGS=-DXXH_VECTOR=XXH_VSX CFLAGS="-O3 -march=arch11 -mzvector" LDFLAGS="-static" CC=$XCC RUN_ENV=$XEMU make clean check
+        CPPFLAGS=-DXXH_VECTOR=XXH_VSX CFLAGS="-O2 -march=arch11 -mzvector" LDFLAGS="-static" CC=$XCC RUN_ENV=$XEMU make clean check
 
     - name: MIPS (XXH_VECTOR=[ scalar ])
       if: ${{ matrix.name == 'MIPS' }}
@@ -552,7 +552,7 @@ jobs:
 
   tipi-build-linux:
     name: tipi.build project build and dependency resolution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     container: tipibuild/tipi-ubuntu
 
     env:
