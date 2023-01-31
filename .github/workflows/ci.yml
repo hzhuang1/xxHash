@@ -290,6 +290,24 @@ jobs:
         ../../cmake_bins/cmake-2.8.12.2-Linux-i386/bin/cmake -DCMAKE_BUILD_TYPE=Debug ..
         ../../cmake_bins/cmake-2.8.12.2-Linux-i386/bin/cmake --build .
 
+    - name: cmake version v3.10.3 test for DISPATCH
+      run: |
+        mkdir -p cmake_bins
+        cd cmake_bins
+        wget https://cmake.org/files/v3.10/cmake-3.10.3-Linux-x86_64.tar.gz
+        tar xzf cmake-3.10.3-Linux-x86_64.tar.gz
+        cd ../cmake_unofficial
+        mkdir -p build
+        cd build
+        ../../cmake_bins/cmake-3.10.3-Linux-x86_64/bin/cmake --version
+        ../../cmake_bins/cmake-3.10.3-Linux-x86_64/bin/cmake -DDISPTACH=1 ..
+        ../../cmake_bins/cmake-3.10.3-Linux-x86_64/bin/cmake --build .
+        mkdir -p test_install_dir
+        DESTDIR=test_install_dir ../../cmake_bins/cmake-3.10.3-Linux-x86_64/bin/cmake --install .
+        rm -rf *
+        ../../cmake_bins/cmake-3.10.3-Linux-x86_64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DDISPATCH=1 ..
+        ../../cmake_bins/cmake-3.10.3-Linux-x86_64/bin/cmake --build .
+
 
 
   # Linux, { ARM, ARM64, PPC64LE, PPC64, S390X }
