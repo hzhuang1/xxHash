@@ -75,16 +75,16 @@ mark_as_advanced(XXHASH_BUNDLED_MODE)
 include(CMakeDependentOption)
 CMAKE_DEPENDENT_OPTION(BUILD_SHARED_LIBS "Build shared libraries" ON "NOT XXHASH_BUNDLED_MODE" OFF)
 
+set(DISPATCH CACHE OFF)
 if("${CMAKE_VERSION}" VERSION_LESS "3.10")
   # Can not enable DISPATCH mode since it fails to recognize architecture.
-  set(DISPATCH OFF)
 else()
   CMAKE_HOST_SYSTEM_INFORMATION(RESULT PLATFORM QUERY OS_PLATFORM)
   message(STATUS "Architecture: ${PLATFORM}")
 endif()
 
 # libxxhash
-if((DISPATCH) AND (DEFINED PLATFORM))
+if(${DISPATCH} AND (DEFINED PLATFORM))
   # Only support DISPATCH option on x86_64.
   if("${PLATFORM}" STREQUAL "x86_64")
     message(STATUS "Enable xxHash dispatch mode")
