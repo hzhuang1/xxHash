@@ -77,6 +77,7 @@ CMAKE_DEPENDENT_OPTION(BUILD_SHARED_LIBS "Build shared libraries" ON "NOT XXHASH
 
 if("${CMAKE_VERSION}" VERSION_LESS "3.10")
   # Can not enable DISPATCH mode since it fails to recognize architecture.
+  set(DISPATCH OFF)
 else()
   CMAKE_HOST_SYSTEM_INFORMATION(RESULT PLATFORM QUERY OS_PLATFORM)
   message(STATUS "Architecture: ${PLATFORM}")
