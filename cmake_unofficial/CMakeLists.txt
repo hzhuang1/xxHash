@@ -83,7 +83,7 @@ else()
 endif()
 
 # libxxhash
-if((DEFINED DISPATCH) AND (DEFINED PLATFORM))
+if((DISPATCH) AND (DEFINED PLATFORM))
   # Only support DISPATCH option on x86_64.
   if("${PLATFORM}" STREQUAL "x86_64")
     message(STATUS "Enable xxHash dispatch mode")
