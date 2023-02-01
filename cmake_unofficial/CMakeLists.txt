@@ -75,7 +75,7 @@ mark_as_advanced(XXHASH_BUNDLED_MODE)
 include(CMakeDependentOption)
 CMAKE_DEPENDENT_OPTION(BUILD_SHARED_LIBS "Build shared libraries" ON "NOT XXHASH_BUNDLED_MODE" OFF)
 
-set(DISPATCH CACHE OFF)
+set(DISPATCH OFF CACHE BOOL "")
 if("${CMAKE_VERSION}" VERSION_LESS "3.10")
   # Can not enable DISPATCH mode since it fails to recognize architecture.
 else()
