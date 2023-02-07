@@ -3051,7 +3051,7 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(XXH_NOESCAPE const XXH64_can
 #    include <arm_sve.h>
 #  endif
 #  if defined(__ARM_NEON__) || defined(__ARM_NEON) \
-   || defined(__aarch64__)  || defined(_M_ARM) \
+   || /*defined(__aarch64__) ||*/ defined(_M_ARM) \
    || defined(_M_ARM64)     || defined(_M_ARM64EC)
 #    define inline __inline__  /* circumvent a clang bug */
 #    include <arm_neon.h>
