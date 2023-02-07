@@ -39,13 +39,13 @@ check_option() {
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
 		export CFLAGS="-O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON"
 		#export CFLAGS="-O3 -march=armv8-a+simd -fPIC"
-		export DISPATCH=1
+		#export DISPATCH=1
 		;;
 	"clang13+scalar+arch")
 		export PATH=$PATH:$CLANG13_PATH
 		export CC=clang
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
-		export CFLAGS="-O3 -march=armv8-a+nosimd -fPIC"
+		export CFLAGS="-O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR"
 		;;
 	"clang13+sve")
 		export PATH=$PATH:$CLANG13_PATH
