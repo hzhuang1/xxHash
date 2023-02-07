@@ -1,0 +1,36 @@
+[ecs-user@Titan xxhash]$ ./sve.sh -b
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   , 14991, 17136, 17185, 17358, 17474, 17527, 17516, 17504, 17509, 17492, 17468, 17106, 17467, 17474, 17485, 17489, 17509, 17417, 17259
+XXH32  ,  9618, 10237, 10581, 10759, 10782, 10869, 10900, 10868, 10908, 10918, 10877, 10701, 10905, 10899, 10905, 10914, 10931, 10686, 10815
+XXH64  , 12675, 13763, 14308, 14615, 14742, 15032, 15095, 15308, 15073, 15098, 14584, 14405, 14552, 14554, 14560, 14566, 14681, 14611, 14674
+XXH128 , 12317, 15166, 16159, 16835, 17206, 17391, 17446, 17465, 17470, 17492, 17444, 17139, 17459, 17480, 17515, 17500, 17497, 17416, 17252
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   , 292948665
+XXH32  , 266933373
+XXH64  , 179067851
+XXH128 , 286531097
+benchmarking random size inputs [1-N] : 
+xxh3   , 292995094
+XXH32  , 208683597
+XXH64  , 147716017
+XXH128 , 286521118
+Latency for small inputs of fixed size : 
+xxh3   , 127233902
+XXH32  , 100737072
+XXH64  ,  97009744
+XXH128 , 122811248
+Latency for small inputs of random size [1-N] : 
+xxh3   , 127732803
+XXH32  , 107694843
+XXH64  , 101307305
+XXH128 , 123051392
+[ecs-user@Titan xxhash]$ 
+

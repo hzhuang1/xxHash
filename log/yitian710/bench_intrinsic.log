@@ -1,0 +1,36 @@
+[ecs-user@Titan xxhash]$ ./sve.sh -b
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   ,  9947, 11285, 11768, 12284, 12588, 12740, 12782, 12796, 12824, 12821, 12782,  9495, 12661, 12647, 12660, 12664, 12660, 12361, 12556
+XXH32  ,  9645, 10245, 10582, 10760, 10776, 10858, 10901, 10890, 10905, 10910, 10882, 10691, 10909, 10908, 10915, 10917, 10931, 10706, 10819
+XXH64  , 12604, 13758, 14387, 14618, 14795, 15047, 15146, 15460, 14973, 15153, 14593, 14385, 14571, 14573, 14562, 14562, 14641, 14556, 14648
+XXH128 ,  8467, 10297, 11257, 12009, 12426, 12631, 12715, 12747, 12796, 12804, 12660,  6713, 12630, 12629, 12629, 12628, 12620, 12335, 12551
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   , 297228582
+XXH32  , 267690878
+XXH64  , 179098855
+XXH128 , 290869302
+benchmarking random size inputs [1-N] : 
+xxh3   , 297031158
+XXH32  , 203495292
+XXH64  , 146576897
+XXH128 , 290866643
+Latency for small inputs of fixed size : 
+xxh3   , 127162360
+XXH32  , 100352900
+XXH64  ,  96794676
+XXH128 , 122992136
+Latency for small inputs of random size [1-N] : 
+xxh3   , 127720140
+XXH32  , 107502852
+XXH64  , 101065051
+XXH128 , 122970056
+[ecs-user@Titan xxhash]$ 
+
