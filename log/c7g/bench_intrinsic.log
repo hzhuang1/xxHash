@@ -1,0 +1,59 @@
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+In file included from main.c:36:
+In file included from ./hashes.h:71:
+../../xxhash.h:4766:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
+                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                             ^~~~~~~~~~~~
+/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
+#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
+                                         ^~~~~~~~~~~
+In file included from main.c:36:
+In file included from ./hashes.h:71:
+../../xxhash.h:4781:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
+                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                             ^~~~~~~~~~~~
+/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
+#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
+                                         ^~~~~~~~~~~
+In file included from main.c:36:
+In file included from ./hashes.h:71:
+../../xxhash.h:4800:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
+                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                             ^~~~~~~~~~~~
+/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
+#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
+                                         ^~~~~~~~~~~
+3 warnings generated.
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   , 13107, 15179, 15197, 15192, 15210, 15210, 15202, 15179, 15011, 15037, 15041, 14496, 14368, 14296, 14291, 14283, 14134, 14079, 14062
+XXH32  ,  9501,  9905, 10151, 10264, 10247, 10320, 10352, 10166,  9907, 10028,  9945,  8820, 10375, 10369, 10355, 10307, 10297, 10352, 10344
+XXH64  , 11340, 12473, 13126, 13491, 13670, 13741, 13795, 13792, 13826, 13839, 13846, 13670, 13844, 13849, 13849, 13773, 13734, 13786, 13809
+XXH128 , 11090, 13380, 14117, 14683, 15037, 15127, 15172, 15171, 15083, 15115, 15131, 14694, 14446, 14368, 14350, 14339, 14014, 13961, 13953
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   , 288048657
+XXH32  , 259255121
+XXH64  , 184215634
+XXH128 , 277586369
+benchmarking random size inputs [1-N] : 
+xxh3   , 288033409
+XXH32  , 203356528
+XXH64  , 141233497
+XXH128 , 277772548
+Latency for small inputs of fixed size : 
+xxh3   , 121056687
+XXH32  ,  98994058
+XXH64  ,  95608694
+XXH128 , 128642276
+Latency for small inputs of random size [1-N] : 
+xxh3   , 121268064
+XXH32  , 105693688
+XXH64  , 100207346
+XXH128 , 128676060
+
