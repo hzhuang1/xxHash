@@ -1,0 +1,59 @@
+haojian@landingteam-sve:~/xxhash$ ./sve.sh -b
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o main.o main.c
+In file included from main.c:36:
+In file included from ./hashes.h:68:
+./../../xxh_dispatch.h:44:30: warning: function 'XXH3_64bits_dispatch' has internal linkage but is not defined [-Wundefined-internal]
+XXH_PUBLIC_API XXH64_hash_t  XXH3_64bits_dispatch(XXH_NOESCAPE const void* input, size_t len);
+                             ^
+./hashes.h:91:21: note: used here
+    return (size_t) XXH3_64bits(src, srcSize);
+                    ^
+./../../xxh_dispatch.h:64:22: note: expanded from macro 'XXH3_64bits'
+# define XXH3_64bits XXH3_64bits_dispatch
+                     ^
+./../../xxh_dispatch.h:49:30: warning: function 'XXH3_128bits_dispatch' has internal linkage but is not defined [-Wundefined-internal]
+XXH_PUBLIC_API XXH128_hash_t XXH3_128bits_dispatch(XXH_NOESCAPE const void* input, size_t len);
+                             ^
+./hashes.h:98:21: note: used here
+    return (size_t) XXH3_128bits(src, srcSize).low64;
+                    ^
+./../../xxh_dispatch.h:75:23: note: expanded from macro 'XXH3_128bits'
+# define XXH3_128bits XXH3_128bits_dispatch
+                      ^
+2 warnings generated.
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o timefn.o timefn.c
+clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
+clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o xxh_arm64dispatch.o xxh_arm64sve.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   ,  4147,  6669,  9744, 12333, 14058, 15084, 15643, 15429, 15154, 13850, 13889, 13966, 13961, 11793,  5055,  4362,  4382,  4399,  4418
+XXH32  ,  1338,  1438,  1488,  1523,  1534,  1543,  1547,  1535,  1500,  1501,  1503,  1503,  1503,  1463,  1270,  1223,  1227,  1227,  1228
+XXH64  ,  2511,  2796,  2979,  3061,  3115,  3145,  3157,  3118,  3030,  3040,  3041,  3044,  3043,  2928,  2210,  2066,  2066,  2069,  2069
+XXH128 ,  3890,  6454,  9474, 11971, 13814, 15142, 15899, 15321, 15087, 15312, 15421, 15471, 15488, 13542,  5331,  4553,  4405,  4414,  4426
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   ,  72522183
+XXH32  ,  49893506
+XXH64  ,  41979592
+XXH128 ,  60953509
+benchmarking random size inputs [1-N] : 
+xxh3   ,  72501295
+XXH32  ,  39949681
+XXH64  ,  34143733
+XXH128 ,  58724402
+Latency for small inputs of fixed size : 
+xxh3   ,  32794768
+XXH32  ,  25245483
+XXH64  ,  24325213
+XXH128 ,  27324102
+Latency for small inputs of random size [1-N] : 
+xxh3   ,  33240450
+XXH32  ,  24264105
+XXH64  ,  23769509
+XXH128 ,  29727897
+haojian@landingteam-sve:~/xxhash$ 
+

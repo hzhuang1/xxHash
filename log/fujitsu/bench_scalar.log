@@ -1,0 +1,34 @@
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   ,  2612,  3099,  3295,  3357,  3373,  3384,  3416,  3456,  3497,  3490,  3506,  3494,  3496,  3354,  2448,  2271,  2275,  2279,  2292
+XXH32  ,  1493,  1520,  1537,  1543,  1545,  1549,  1548,  1533,  1494,  1495,  1497,  1496,  1492,  1451,  1262,  1215,  1214,  1214,  1218
+XXH64  ,  2505,  2798,  2975,  3069,  3121,  3137,  3156,  3113,  2993,  3003,  3007,  3009,  3004,  2906,  2167,  2022,  2033,  2046,  2049
+XXH128 ,  2415,  2859,  3184,  3350,  3467,  3503,  3525,  3512,  3439,  3444,  3445,  3449,  3443,  3286,  2354,  2162,  2276,  2285,  2300
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   ,  71523202
+XXH32  ,  50915695
+XXH64  ,  43514344
+XXH128 ,  74405951
+benchmarking random size inputs [1-N] : 
+xxh3   ,  71505889
+XXH32  ,  39836910
+XXH64  ,  33652433
+XXH128 ,  74435219
+Latency for small inputs of fixed size : 
+xxh3   ,  34899751
+XXH32  ,  25191257
+XXH64  ,  25347434
+XXH128 ,  35629565
+Latency for small inputs of random size [1-N] : 
+xxh3   ,  35831328
+XXH32  ,  24963842
+XXH64  ,  23615051
+XXH128 ,  35637155
+
