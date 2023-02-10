@@ -4763,7 +4763,7 @@ XXH3_accumulate_sve(xxh_u64* XXH_RESTRICT acc,
             svuint64_t vacc = svld1_u64(mask, xacc + 0);
             do {
                 /* svprfd(svbool_t, void *, enum svfprop); */
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                svprfd(mask, (const void *)(xinput + 128), SV_PLDL1STRM);
                 ACCRND(vacc, 0);
                 xinput += 8;
                 xsecret += 1;
@@ -4778,7 +4778,7 @@ XXH3_accumulate_sve(xxh_u64* XXH_RESTRICT acc,
             svuint64_t acc2 = svld1_u64(mask, xacc + 4);
             svuint64_t acc3 = svld1_u64(mask, xacc + 6);
             do {
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                svprfd(mask, (const void *)(xinput + 128), SV_PLDL1STRM);
                 ACCRND(acc0, 0);
                 ACCRND(acc1, 2);
                 ACCRND(acc2, 4);
@@ -4797,7 +4797,7 @@ XXH3_accumulate_sve(xxh_u64* XXH_RESTRICT acc,
             svuint64_t acc0 = svld1_u64(mask, xacc + 0);
             svuint64_t acc1 = svld1_u64(mask, xacc + 4);
             do {
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
+                svprfd(mask, (const void *)(xinput + 128), SV_PLDL1STRM);
                 ACCRND(acc0, 0);
                 ACCRND(acc1, 4);
                 xinput += 8;
