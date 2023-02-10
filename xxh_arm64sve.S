@@ -292,12 +292,31 @@ ENTRY (XXH3_sve256_internal_loop)
 	cmp	x10, x3
 	b.ge	11f
 10:
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
 	ACCRND	z17.d, #0, MUL VL
 	ACCRND	z18.d, #1, MUL VL
+*/
+	ldr	z19, [x1, #0, MUL VL]
+		ldr	z20, [x1, #1, MUL VL]
+	ldr	z21, [x2, #0, MUL VL]
+		ldr	z22, [x2, #1, MUL VL]
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	eor	z21.d, z21.d, z19.d
+		eor	z22.d, z22.d, z20.d
+	tbl	z19.d, {z19.d}, z7.d
+		tbl	z20.d, {z20.d}, z7.d
+	uxtw	z23.d, p7/m, z21.d
+		uxtw	z24.d, p7/m, z22.d
+	lsr	z21.d, p7/m, z21.d, #32
+		lsr	z22.d, p7/m, z22.d, #32
+	mad	z21.d, p7/m, z23.d, z19.d
+		mad	z22.d, p7/m, z24.d, z20.d
+	add	z17.d, p7/m, z17.d, z21.d
+		add	z18.d, p7/m, z18.d, z22.d
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -311,8 +330,20 @@ ENTRY (XXH3_sve256_internal_loop)
 	add	x1, x15, x4
 	sub	x1, x1, #64
 	/* start scramble function */
+/*
 	SCRAM	z17.d, #0, MUL VL
 	SCRAM	z18.d, #1, MUL VL
+*/
+	ldr	z19, [x1, #0, MUL VL]
+		ldr	z20, [x1, #1, MUL VL]
+	eor	z19.d, z17.d, z19.d
+		eor	z20.d, z18.d, z20.d
+	lsr	z21.d, z17.d, #47
+		lsr	z22.d, z18.d, #47
+	eor	z17.d, z19.d, z21.d
+		eor	z18.d, z20.d, z22.d
+	mul	z17.d, p7/m, z17.d, z16.d
+		mul	z18.d, p7/m, z18.d, z16.d
 	/* end scramble function */
 	add	x9, x9, #1
 	cmp	x9, x20
@@ -332,12 +363,31 @@ ENTRY (XXH3_sve256_internal_loop)
 	cmp	x10, x3
 	b.ge	21f
 20:
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
 	ACCRND	z17.d, #0, MUL VL
 	ACCRND	z18.d, #1, MUL VL
+*/
+	ldr	z19, [x1, #0, MUL VL]
+		ldr	z20, [x1, #1, MUL VL]
+	ldr	z21, [x2, #0, MUL VL]
+		ldr	z22, [x2, #1, MUL VL]
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	eor	z21.d, z21.d, z19.d
+		eor	z22.d, z22.d, z20.d
+	tbl	z19.d, {z19.d}, z7.d
+		tbl	z20.d, {z20.d}, z7.d
+	uxtw	z23.d, p7/m, z21.d
+		uxtw	z24.d, p7/m, z22.d
+	lsr	z21.d, p7/m, z21.d, #32
+		lsr	z22.d, p7/m, z22.d, #32
+	mad	z21.d, p7/m, z23.d, z19.d
+		mad	z22.d, p7/m, z24.d, z20.d
+	add	z17.d, p7/m, z17.d, z21.d
+		add	z18.d, p7/m, z18.d, z22.d
 
 	add	x1, x1, #64
 	add	x2, x2, #8
@@ -353,12 +403,31 @@ ENTRY (XXH3_sve256_internal_loop)
 	add	x2, x15, x19
 	sub	x2, x2, #64
 	sub	x2, x2, #7
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
 	mov	z4.d, #32
 	ACCRND	z17.d, #0, MUL VL
 	ACCRND	z18.d, #1, MUL VL
+*/
+	ldr	z19, [x1, #0, MUL VL]
+		ldr	z20, [x1, #1, MUL VL]
+	ldr	z21, [x2, #0, MUL VL]
+		ldr	z22, [x2, #1, MUL VL]
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	eor	z21.d, z21.d, z19.d
+		eor	z22.d, z22.d, z20.d
+	tbl	z19.d, {z19.d}, z7.d
+		tbl	z20.d, {z20.d}, z7.d
+	uxtw	z23.d, p7/m, z21.d
+		uxtw	z24.d, p7/m, z22.d
+	lsr	z21.d, p7/m, z21.d, #32
+		lsr	z22.d, p7/m, z22.d, #32
+	mad	z21.d, p7/m, z23.d, z19.d
+		mad	z22.d, p7/m, z24.d, z20.d
+	add	z17.d, p7/m, z17.d, z21.d
+		add	z18.d, p7/m, z18.d, z22.d
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
