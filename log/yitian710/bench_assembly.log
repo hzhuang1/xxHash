@@ -1,4 +1,3 @@
-[ecs-user@Titan xxhash]$ ./sve.sh -b
 rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
 clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o main.o main.c
 In file included from main.c:36:
@@ -31,28 +30,28 @@ clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra
 g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o xxh_arm64dispatch.o xxh_arm64sve.o  -o benchHash
  ===  benchmarking 4 hash functions  === 
 benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
-xxh3   ,  9470, 10657, 11245, 11487, 11612, 11678, 11697, 11700, 11720, 11720, 11686,  9485, 11429, 11522, 11564, 11589, 11601, 11371, 11428
-XXH32  ,  9619, 10239, 10578, 10755, 10783, 10869, 10901, 10868, 10906, 10917, 10858, 10780, 10909, 10913, 10915, 10920, 10932, 10688, 10818
-XXH64  , 12601, 13806, 14498, 14612, 14756, 15042, 15153, 15228, 15074, 15584, 14748, 14440, 14575, 14576, 14573, 14580, 14624, 14667, 14603
-XXH128 ,  8304,  9884, 10809, 11252, 11493, 11617, 11668, 11684, 11708, 11719, 11688,  9623, 11294, 11464, 11516, 11505, 11594, 11411, 11427
+xxh3   ,  9932, 11432, 12119, 12433, 12585, 12686, 12697, 12683, 12716, 12722, 11897,  9242, 10137, 12459, 12550, 12594, 12604, 12408, 12451
+XXH32  ,  9616, 10250, 10580, 10756, 10782, 10861, 10902, 10897, 10910, 10918, 10888, 10782, 10912, 10912, 10911, 10919, 10935, 10808, 10811
+XXH64  , 12605, 13738, 14309, 14815, 15036, 15095, 15081, 15435, 14862, 14818, 14656, 14684, 14674, 14626, 14702, 14695, 14979, 14720, 14792
+XXH128 ,  8565, 10466, 11596, 12160, 12434, 12597, 12656, 12666, 12712, 12729, 12641,  9388, 12291, 12431, 12520, 12569, 12607, 12424, 12426
 Throughput small inputs of fixed size (from 2 to 2 bytes): 
-xxh3   , 293917825
-XXH32  , 267171352
-XXH64  , 178893822
-XXH128 , 244492939
+xxh3   , 293027029
+XXH32  , 266554159
+XXH64  , 178810986
+XXH128 , 243837453
 benchmarking random size inputs [1-N] : 
-xxh3   , 293988698
-XXH32  , 207492795
-XXH64  , 148311956
-XXH128 , 244487175
+xxh3   , 293426608
+XXH32  , 209162378
+XXH64  , 147383965
+XXH128 , 243837018
 Latency for small inputs of fixed size : 
-xxh3   , 127926963
-XXH32  , 100240766
-XXH64  ,  96847046
-XXH128 , 118962475
+xxh3   , 128299556
+XXH32  , 100288100
+XXH64  ,  96813509
+XXH128 , 119168608
 Latency for small inputs of random size [1-N] : 
-xxh3   , 128129265
-XXH32  , 107514927
-XXH64  , 101183188
-XXH128 , 119390168
-[ecs-user@Titan xxhash]$ client_loop: send disconnect: Broken pipe
+xxh3   , 128282953
+XXH32  , 107434758
+XXH64  , 101201704
+XXH128 , 119342993
+
