@@ -2,33 +2,6 @@ rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
 clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o main.o main.c
 In file included from main.c:36:
 In file included from ./hashes.h:68:
-In file included from ./../../xxh_dispatch.h:38:
-../../xxhash.h:4766:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
-                             ^~~~~~~~~~~~
-/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
-#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
-                                         ^~~~~~~~~~~
-In file included from main.c:36:
-In file included from ./hashes.h:68:
-In file included from ./../../xxh_dispatch.h:38:
-../../xxhash.h:4781:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
-                             ^~~~~~~~~~~~
-/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
-#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
-                                         ^~~~~~~~~~~
-In file included from main.c:36:
-In file included from ./hashes.h:68:
-In file included from ./../../xxh_dispatch.h:38:
-../../xxhash.h:4800:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
-                             ^~~~~~~~~~~~
-/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
-#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
-                                         ^~~~~~~~~~~
-In file included from main.c:36:
-In file included from ./hashes.h:68:
 ./../../xxh_dispatch.h:44:30: warning: function 'XXH3_64bits_dispatch' has internal linkage but is not defined [-Wundefined-internal]
 XXH_PUBLIC_API XXH64_hash_t  XXH3_64bits_dispatch(XXH_NOESCAPE const void* input, size_t len);
                              ^
@@ -47,61 +20,39 @@ XXH_PUBLIC_API XXH128_hash_t XXH3_128bits_dispatch(XXH_NOESCAPE const void* inpu
 ./../../xxh_dispatch.h:75:23: note: expanded from macro 'XXH3_128bits'
 # define XXH3_128bits XXH3_128bits_dispatch
                       ^
-5 warnings generated.
+2 warnings generated.
 clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o bhDisplay.o bhDisplay.c
 clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchHash.o benchHash.c
 clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchfn.o benchfn.c
 clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o timefn.o timefn.c
 clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
-In file included from ../../xxh_arm64dispatch.c:45:
-../../xxhash.h:4766:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
-                             ^~~~~~~~~~~~
-/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
-#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
-                                         ^~~~~~~~~~~
-In file included from ../../xxh_arm64dispatch.c:45:
-../../xxhash.h:4781:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
-                             ^~~~~~~~~~~~
-/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
-#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
-                                         ^~~~~~~~~~~
-In file included from ../../xxh_arm64dispatch.c:45:
-../../xxhash.h:4800:30: warning: passing 'const uint64_t *' (aka 'const unsigned long *') to parameter of type 'const long *' converts between pointers to integer types with different sign [-Wpointer-sign]
-                svprfd(mask, xinput + 128, SV_PLDL1STRM);
-                             ^~~~~~~~~~~~
-/usr/lib64/clang/11.1.0/include/arm_sve.h:3751:42: note: expanded from macro 'svprfd'
-#define svprfd(...) __builtin_sve_svprfd(__VA_ARGS__)
-                                         ^~~~~~~~~~~
-3 warnings generated.
 clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
 g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o xxh_arm64dispatch.o xxh_arm64sve.o  -o benchHash
 /usr/bin/ld: warning: xxh_arm64sve.o: unsupported GNU_PROPERTY_TYPE (5) type: 0xc0000000
  ===  benchmarking 4 hash functions  === 
 benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
-xxh3   , 13144, 15516, 16751, 16881, 17041, 16968, 16938, 16874, 15438, 15463, 15469, 15013, 15204, 15421, 15424, 15414, 15274, 15203, 15190
-XXH32  ,  9495,  9887, 10150, 10258, 10261, 10322, 10352, 10343, 10353, 10366, 10373, 10184,  9925, 10380, 10376, 10364, 10277, 10351, 10360
-XXH64  , 11359, 12513, 13149, 13486, 13666, 13738, 13794, 13795, 13826, 13839, 13846, 13697, 13845, 13843, 13847, 13830, 13691, 13794, 13805
-XXH128 , 11461, 14478, 16068, 16271, 16605, 16818, 16834, 16852, 15477, 15506, 15518, 15215, 15454, 15467, 15472, 15462, 15288, 15214, 15195
+xxh3   , 14105, 16872, 18129, 18687, 18484, 18471, 18503, 18470, 16905, 16938, 16483, 16389, 16863, 16853, 16854, 16716, 16594, 16458, 16448
+XXH32  ,  9508,  9922, 10150, 10262, 10259, 10321, 10353, 10338, 10352, 10350, 10338,  9642, 10172, 10052,  9799, 10235, 10286, 10288, 10320
+XXH64  , 11370, 12499, 13125, 13492, 13664, 13742, 13796, 13794, 13825, 13839, 13844, 13721, 13845, 13838, 13724, 13664, 13720, 13784, 13804
+XXH128 , 12020, 14624, 16897, 17558, 18079, 18354, 18397, 18441, 16926, 16971, 16983, 16572, 16900, 16911, 16885, 16802, 16583, 16509, 16490
 Throughput small inputs of fixed size (from 2 to 2 bytes): 
-xxh3   , 307414966
-XXH32  , 259344654
-XXH64  , 186087980
-XXH128 , 235733236
+xxh3   , 259347059
+XXH32  , 259310450
+XXH64  , 186350347
+XXH128 , 235753322
 benchmarking random size inputs [1-N] : 
-xxh3   , 259363841
-XXH32  , 205740807
-XXH64  , 141632092
-XXH128 , 235697187
+xxh3   , 308506134
+XXH32  , 191959568
+XXH64  , 142376721
+XXH128 , 235725252
 Latency for small inputs of fixed size : 
-xxh3   , 116008353
-XXH32  ,  99074885
-XXH64  ,  95643733
-XXH128 , 117262311
+xxh3   , 115983717
+XXH32  ,  99074139
+XXH64  ,  95626856
+XXH128 , 117238459
 Latency for small inputs of random size [1-N] : 
-xxh3   , 116283447
-XXH32  , 106010453
-XXH64  , 100578654
-XXH128 , 117033849
+xxh3   , 116657253
+XXH32  , 105997588
+XXH64  , 100600768
+XXH128 , 117218960
 
