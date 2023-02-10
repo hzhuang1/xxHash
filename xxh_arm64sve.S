@@ -156,6 +156,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	cmp	x10, x3
 	b.ge	11f
 10:
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
@@ -164,6 +165,40 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z18.d, #1, MUL VL
 	ACCRND	z19.d, #2, MUL VL
 	ACCRND	z20.d, #3, MUL VL
+*/
+	ldr	z21, [x1, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
+	ldr	z25, [x2, #0, MUL VL]
+		ldr	z26, [x2, #1, MUL VL]
+		ldr	z27, [x2, #2, MUL VL]
+		ldr	z28, [x2, #3, MUL VL]
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	eor	z25.d, z25.d, z21.d
+		eor	z26.d, z26.d, z22.d
+		eor	z27.d, z27.d, z23.d
+		eor	z28.d, z28.d, z24.d
+	tbl	z21.d, {z21.d}, z7.d
+		tbl	z22.d, {z22.d}, z7.d
+		tbl	z23.d, {z23.d}, z7.d
+		tbl	z24.d, {z24.d}, z7.d
+	uxtw	z1.d, p7/m, z25.d
+		uxtw	z2.d, p7/m, z26.d
+		uxtw	z3.d, p7/m, z27.d
+		uxtw	z4.d, p7/m, z28.d
+	lsr	z25.d, p7/m, z25.d, #32
+		lsr	z26.d, p7/m, z26.d, #32
+		lsr	z27.d, p7/m, z27.d, #32
+		lsr	z28.d, p7/m, z28.d, #32
+	mad	z25.d, p7/m, z1.d, z21.d
+		mad	z26.d, p7/m, z2.d, z22.d
+		mad	z27.d, p7/m, z3.d, z23.d
+		mad	z28.d, p7/m, z4.d, z24.d
+	add	z17.d, p7/m, z17.d, z25.d
+		add	z18.d, p7/m, z18.d, z26.d
+		add	z19.d, p7/m, z19.d, z27.d
+		add	z20.d, p7/m, z20.d, z28.d
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -176,10 +211,32 @@ ENTRY (XXH3_sve128_internal_loop)
 	add	x1, x15, x4
 	sub	x1, x1, #64
 	/* start scramble function */
+/*
 	SCRAM	z17.d, #0, MUL VL
 	SCRAM	z18.d, #1, MUL VL
 	SCRAM	z19.d, #2, MUL VL
 	SCRAM	z20.d, #3, MUL VL
+*/
+	ldr	z21, [x1, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
+	eor	z21.d, z17.d, z21.d
+		eor	z22.d, z18.d, z22.d
+		eor	z23.d, z19.d, z23.d
+		eor	z24.d, z20.d, z24.d
+	lsr	z25.d, z17.d, #47
+		lsr	z26.d, z18.d, #47
+		lsr	z27.d, z19.d, #47
+		lsr	z28.d, z20.d, #47
+	eor	z17.d, z21.d, z25.d
+		eor	z18.d, z22.d, z26.d
+		eor	z19.d, z23.d, z27.d
+		eor	z20.d, z24.d, z28.d
+	mul	z17.d, p7/m, z17.d, z16.d
+		mul	z18.d, p7/m, z18.d, z16.d
+		mul	z19.d, p7/m, z19.d, z16.d
+		mul	z20.d, p7/m, z20.d, z16.d
 	/* end scramble function */
 	add	x9, x9, #1
 	cmp	x9, x20
@@ -198,6 +255,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	cmp	x10, x3
 	b.ge	21f
 20:
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
@@ -206,6 +264,40 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z18.d, #1, MUL VL
 	ACCRND	z19.d, #2, MUL VL
 	ACCRND	z20.d, #3, MUL VL
+*/
+	ldr	z21, [x1, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
+	ldr	z25, [x2, #0, MUL VL]
+		ldr	z26, [x2, #1, MUL VL]
+		ldr	z27, [x2, #2, MUL VL]
+		ldr	z28, [x2, #3, MUL VL]
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	eor	z25.d, z25.d, z21.d
+		eor	z26.d, z26.d, z22.d
+		eor	z27.d, z27.d, z23.d
+		eor	z28.d, z28.d, z24.d
+	tbl	z21.d, {z21.d}, z7.d
+		tbl	z22.d, {z22.d}, z7.d
+		tbl	z23.d, {z23.d}, z7.d
+		tbl	z24.d, {z24.d}, z7.d
+	uxtw	z1.d, p7/m, z25.d
+		uxtw	z2.d, p7/m, z26.d
+		uxtw	z3.d, p7/m, z27.d
+		uxtw	z4.d, p7/m, z28.d
+	lsr	z25.d, p7/m, z25.d, #32
+		lsr	z26.d, p7/m, z26.d, #32
+		lsr	z27.d, p7/m, z27.d, #32
+		lsr	z28.d, p7/m, z28.d, #32
+	mad	z25.d, p7/m, z1.d, z21.d
+		mad	z26.d, p7/m, z2.d, z22.d
+		mad	z27.d, p7/m, z3.d, z23.d
+		mad	z28.d, p7/m, z4.d, z24.d
+	add	z17.d, p7/m, z17.d, z25.d
+		add	z18.d, p7/m, z18.d, z26.d
+		add	z19.d, p7/m, z19.d, z27.d
+		add	z20.d, p7/m, z20.d, z28.d
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -219,6 +311,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	add	x2, x15, x19
 	sub	x2, x2, #64
 	sub	x2, x2, #7
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
@@ -227,6 +320,40 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z18.d, #1, MUL VL
 	ACCRND	z19.d, #2, MUL VL
 	ACCRND	z20.d, #3, MUL VL
+*/
+	ldr	z21, [x1, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
+	ldr	z25, [x2, #0, MUL VL]
+		ldr	z26, [x2, #1, MUL VL]
+		ldr	z27, [x2, #2, MUL VL]
+		ldr	z28, [x2, #3, MUL VL]
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	eor	z25.d, z25.d, z21.d
+		eor	z26.d, z26.d, z22.d
+		eor	z27.d, z27.d, z23.d
+		eor	z28.d, z28.d, z24.d
+	tbl	z21.d, {z21.d}, z7.d
+		tbl	z22.d, {z22.d}, z7.d
+		tbl	z23.d, {z23.d}, z7.d
+		tbl	z24.d, {z24.d}, z7.d
+	uxtw	z1.d, p7/m, z25.d
+		uxtw	z2.d, p7/m, z26.d
+		uxtw	z3.d, p7/m, z27.d
+		uxtw	z4.d, p7/m, z28.d
+	lsr	z25.d, p7/m, z25.d, #32
+		lsr	z26.d, p7/m, z26.d, #32
+		lsr	z27.d, p7/m, z27.d, #32
+		lsr	z28.d, p7/m, z28.d, #32
+	mad	z25.d, p7/m, z1.d, z21.d
+		mad	z26.d, p7/m, z2.d, z22.d
+		mad	z27.d, p7/m, z3.d, z23.d
+		mad	z28.d, p7/m, z4.d, z24.d
+	add	z17.d, p7/m, z17.d, z25.d
+		add	z18.d, p7/m, z18.d, z26.d
+		add	z19.d, p7/m, z19.d, z27.d
+		add	z20.d, p7/m, z20.d, z28.d
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
