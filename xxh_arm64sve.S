@@ -167,12 +167,12 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z20.d, #3, MUL VL
 */
 	ldr	z21, [x1, #0, MUL VL]
-		ldr	z22, [x1, #1, MUL VL]
-		ldr	z23, [x1, #2, MUL VL]
-		ldr	z24, [x1, #3, MUL VL]
 	ldr	z25, [x2, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
 		ldr	z26, [x2, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
 		ldr	z27, [x2, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
 		ldr	z28, [x2, #3, MUL VL]
 	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z25.d, z25.d, z21.d
@@ -266,12 +266,12 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z20.d, #3, MUL VL
 */
 	ldr	z21, [x1, #0, MUL VL]
-		ldr	z22, [x1, #1, MUL VL]
-		ldr	z23, [x1, #2, MUL VL]
-		ldr	z24, [x1, #3, MUL VL]
 	ldr	z25, [x2, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
 		ldr	z26, [x2, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
 		ldr	z27, [x2, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
 		ldr	z28, [x2, #3, MUL VL]
 	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z25.d, z25.d, z21.d
@@ -322,12 +322,12 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z20.d, #3, MUL VL
 */
 	ldr	z21, [x1, #0, MUL VL]
-		ldr	z22, [x1, #1, MUL VL]
-		ldr	z23, [x1, #2, MUL VL]
-		ldr	z24, [x1, #3, MUL VL]
 	ldr	z25, [x2, #0, MUL VL]
+		ldr	z22, [x1, #1, MUL VL]
 		ldr	z26, [x2, #1, MUL VL]
+		ldr	z23, [x1, #2, MUL VL]
 		ldr	z27, [x2, #2, MUL VL]
+		ldr	z24, [x1, #3, MUL VL]
 		ldr	z28, [x2, #3, MUL VL]
 	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z25.d, z25.d, z21.d
