@@ -1,0 +1,34 @@
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   ,  5365,  5942,  5998,  6125,  6196,  6231,  6248,  6252,  6260,  6264,  6264,  6260,  6263,  6263,  6229,  6241,  6137,  6196,  6208
+XXH32  ,  4769,  4873,  4935,  4963,  4962,  4979,  4986,  4976,  4974,  4976,  4976,  4974,  4975,  4976,  4961,  4966,  4958,  4954,  4941
+XXH64  ,  3002,  3157,  3242,  3285,  3308,  3318,  3325,  3327,  3328,  3328,  3328,  3327,  3328,  3327,  3325,  3326,  3322,  3317,  3322
+XXH128 ,  4473,  5351,  5698,  5965,  6112,  6188,  6227,  6242,  6255,  6261,  6264,  6262,  6263,  6261,  6261,  6243,  6223,  6230,  6197
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   , 183672750
+XXH32  , 166168581
+XXH64  , 102074801
+XXH128 , 165146437
+benchmarking random size inputs [1-N] : 
+xxh3   , 183752918
+XXH32  , 118147680
+XXH64  ,  87704466
+XXH128 , 165856166
+Latency for small inputs of fixed size : 
+xxh3   ,  96549899
+XXH32  ,  94696279
+XXH64  ,  66903521
+XXH128 , 101097220
+Latency for small inputs of random size [1-N] : 
+xxh3   ,  96547221
+XXH32  ,  92723322
+XXH64  ,  68264044
+XXH128 , 100998988
+
