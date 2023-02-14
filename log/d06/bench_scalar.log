@@ -1,0 +1,34 @@
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+cc -O3 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+cc -O3 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+cc -O3 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+cc -O3 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+cc -O3 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   ,  7208,  7799,  7894,  7936,  8186,  8190,  8213,  8185,  8001,  8217,  7938,  7799,  7765,  7801,  7801,  7736,  6623,  6453,  6495
+XXH32  ,  4654,  4911,  5052,  5126,  5147,  5170,  5182,  5180,  4933,  4935,  4908,  4743,  4593,  4562,  4496,  4469,  4137,  3971,  3972
+XXH64  ,  7310,  8163,  8671,  8948,  9046,  9135,  9184,  9280,  9073,  9082,  8722,  8824,  8121,  7782,  7502,  7342,  6235,  7109,  7111
+XXH128 ,  6468,  7347,  7658,  7815,  7894,  7949,  7982,  8174,  7809,  7821,  7827,  7687,  7618,  7651,  7665,  7596,  6827,  6619,  6614
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   , 173051923
+XXH32  , 162112558
+XXH64  , 129717966
+XXH128 , 185164053
+benchmarking random size inputs [1-N] : 
+xxh3   , 172891425
+XXH32  , 110567262
+XXH64  ,  93968071
+XXH128 , 185185839
+Latency for small inputs of fixed size : 
+xxh3   ,  82710305
+XXH32  ,  72210490
+XXH64  ,  61896723
+XXH128 ,  82710481
+Latency for small inputs of random size [1-N] : 
+xxh3   ,  86273933
+XXH32  ,  76858833
+XXH64  ,  66117695
+XXH128 ,  86164720
+
