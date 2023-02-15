@@ -1,102 +1,68 @@
 #!/bin/bash -e
 CLANG_PATH=/opt/toolchain/clang+llvm-13.0.0-aarch64-linux-gnu/bin/
 #CLANG_PATH=/opt/toolchain/clang+llvm-15.0.6-aarch64-linux-gnu/bin/
-OPTION="clang13+sve+arch+asm"
-#OPTION="clang13+sve+arch"
-#OPTION="clang13+neon+scalar+arch"
-#OPTION="clang13+neon+arch"
-#OPTION="clang13+scalar+arch"
-#OPTION="clang13+sve"
-#OPTION="clang13+scalar"
-#OPTION="gcc11+sve+arch"
-#OPTION="gcc11+neon+arch"
-#OPTION="gcc11+scalar+arch"
-#OPTION="gcc11+sve"
-#OPTION="gcc11+neon"
-#OPTION="gcc11+scalar"
+OPTION="sve+asm"
+#OPTION="sve"
+#OPTION="neon+scalar"
+#OPTION="neon"
+#OPTION="scalar"
 NEON_FULL_LANES="-DXXH3_NEON_LANES=8"
 #CPU_OPTION="-mcpu=neoverse-n1"
 #CPU_OPTION="-mcpu=neoverse-v1"
 #SVE_BITS="-msve-vector-bits=128"
+ARCH_OPTION=1
+export CC=clang
+#export CC=gcc
 
 PWD=`pwd`
 WORKSPACE=$PWD
 
 check_option() {
 	case $OPTION in
-	"clang13+sve+arch+asm")
+	"sve+asm")
+		if [ $ARCH_OPTION ]; then
+			MARCH="-march=armv8-a+sve"
+		fi
 		export PATH=$PATH:$CLANG_PATH
-		export CC=clang
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SVE"
 		export DISPATCH=1
 		;;
-	"clang13+sve+arch")
+	"sve")
+		if [ $ARCH_OPTION ]; then
+			MARCH="-march=armv8-a+sve"
+		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SVE"
 		;;
-	"clang13+neon+scalar+arch")
+	"neon+scalar")
+		if [ $ARCH_OPTION ]; then
+			MARCH="-march=armv8-a+simd"
+		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
-		export CFLAGS="-O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_NEON"
 		;;
-	"clang13+neon+arch")
+	"neon")
+		if [ $ARCH_OPTION ]; then
+			MARCH="-march=armv8-a+simd"
+		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES"
-		export CFLAGS="-O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES"
 		;;
-	"clang13+scalar+arch")
+	"scalar")
+		if [ $ARCH_OPTION ]; then
+			MARCH="-march=armv8-a+nosimd"
+		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
-		export CFLAGS="-O3 -march=armv8-a+nosimd -fPIC -DXXH_VECTOR=XXH_SCALAR"
-		;;
-	"clang13+sve")
-		export PATH=$PATH:$CLANG_PATH
-		export CC=clang
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 -fPIC"
-		;;
-	"clang13+scalar")
-		export PATH=$PATH:$CLANG_PATH
-		export CC=clang
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
-		export CFLAGS="-O3 -fPIC"
-		;;
-	"gcc11+sve+arch")
-		export CC=gcc
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 -march=armv8-a+sve -fPIC"
-		;;
-	"gcc11+neon+arch")
-		export PATH=$PATH:$CLANG_PATH
-		export CC=gcc
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
-		export CFLAGS="-O3 -march=armv8-a+simd -fPIC"
-		;;
-	"gcc11+scalar+arch")
-		export CC=gcc
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
-		export CFLAGS="-O3 -march=armv8-a+nosimd -fPIC"
-		;;
-	"gcc11+sve")
-		export CC=gcc
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 -fPIC"
-		;;
-	"gcc11+neon")
-		export CC=gcc
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
-		export CFLAGS="-O3 -fPIC"
-		;;
-	"gcc11+scalar")
-		export CC=gcc
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
-		export CFLAGS="-O3 -fPIC"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SCALAR"
 		;;
 	esac
 }
