@@ -1,36 +1,34 @@
-[ecs-user@Titan xxhash]$ ./sve.sh -b
 rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
 g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
  ===  benchmarking 4 hash functions  === 
 benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
-xxh3   , 14991, 17136, 17185, 17358, 17474, 17527, 17516, 17504, 17509, 17492, 17468, 17106, 17467, 17474, 17485, 17489, 17509, 17417, 17259
-XXH32  ,  9618, 10237, 10581, 10759, 10782, 10869, 10900, 10868, 10908, 10918, 10877, 10701, 10905, 10899, 10905, 10914, 10931, 10686, 10815
-XXH64  , 12675, 13763, 14308, 14615, 14742, 15032, 15095, 15308, 15073, 15098, 14584, 14405, 14552, 14554, 14560, 14566, 14681, 14611, 14674
-XXH128 , 12317, 15166, 16159, 16835, 17206, 17391, 17446, 17465, 17470, 17492, 17444, 17139, 17459, 17480, 17515, 17500, 17497, 17416, 17252
+xxh3   , 13529, 14664, 14318, 14191, 14133, 14102, 14074, 14056, 14047, 14052, 14035, 13903, 14041, 14040, 14037, 14045, 14047, 13724, 13933
+XXH32  ,  9630, 10259, 10599, 10772, 10800, 10876, 10914, 10884, 10928, 10942, 10925, 10758, 10942, 10942, 10942, 10942, 10950, 10823, 10865
+XXH64  , 12625, 13893, 14333, 14748, 14869, 15162, 15194, 15172, 15255, 15237, 14663, 14620, 14706, 14714, 14737, 14838, 14919, 14549, 14818
+XXH128 , 10754, 12895, 13449, 13743, 13905, 13980, 14027, 14015, 14030, 14047, 14016, 13926, 14017, 14033, 14039, 14043, 14051, 13879, 14035
 Throughput small inputs of fixed size (from 2 to 2 bytes): 
-xxh3   , 292948665
-XXH32  , 266933373
-XXH64  , 179067851
-XXH128 , 286531097
+xxh3   , 295540367
+XXH32  , 267617573
+XXH64  , 178846979
+XXH128 , 289018022
 benchmarking random size inputs [1-N] : 
-xxh3   , 292995094
-XXH32  , 208683597
-XXH64  , 147716017
-XXH128 , 286521118
+xxh3   , 295470724
+XXH32  , 204250149
+XXH64  , 146191567
+XXH128 , 288800000
 Latency for small inputs of fixed size : 
-xxh3   , 127233902
-XXH32  , 100737072
-XXH64  ,  97009744
-XXH128 , 122811248
+xxh3   , 128886037
+XXH32  , 100376670
+XXH64  ,  96927617
+XXH128 , 123164154
 Latency for small inputs of random size [1-N] : 
-xxh3   , 127732803
-XXH32  , 107694843
-XXH64  , 101307305
-XXH128 , 123051392
-[ecs-user@Titan xxhash]$ 
-
+xxh3   , 127761208
+XXH32  , 107669504
+XXH64  , 101238186
+XXH128 , 123129148
+
