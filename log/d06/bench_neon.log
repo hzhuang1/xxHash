@@ -1,34 +1,34 @@
 rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
-clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+simd -fPIC -DXXH_VECTOR=XXH_NEON -DXXH3_NEON_LANES=8 -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -I../..     -c -o timefn.o timefn.c
 g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o  -o benchHash
  ===  benchmarking 4 hash functions  === 
 benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
-xxh3   ,  9247, 10073,  9732,  9654,  9705,  9662,  9666,  9627,  9410,  9356,  9295,  9170,  9079,  8993,  8961,  8766,  7128,  7019,  7014
-XXH32  ,  4572,  4867,  5028,  5082,  5139,  5169,  5184,  5179,  4871,  4874,  4843,  4739,  4569,  4539,  4469,  4442,  4152,  3969,  3966
-XXH64  ,  7055,  8003,  8580,  8896,  9058,  9144,  9192,  9229,  9157,  9161,  8730,  8483,  8067,  7856,  7538,  7398,  6226,  7115,  7115
-XXH128 ,  8037,  9122,  9586,  9749,  9537,  9628,  9855,  9614,  9712,  9458,  9142,  8751,  8645,  8484,  8220,  8041,  7172,  7026,  7017
+xxh3   ,  7889,  7928,  7851,  7806,  7797,  7840,  7985,  7897,  7789,  7664,  7653,  7560,  7526,  7530,  7517,  7505,  6451,  6261,  6256
+XXH32  ,  4583,  4867,  5028,  5082,  5139,  5169,  5184,  5179,  4869,  4869,  4838,  4723,  4561,  4511,  4447,  4420,  4108,  3915,  3915
+XXH64  ,  7055,  8003,  8580,  8899,  9058,  9145,  9190,  9222,  9124,  9111,  8867,  8630,  7932,  7723,  7501,  7323,  6112,  7039,  7040
+XXH128 ,  6840,  7382,  7592,  7706,  7733,  7771,  7795,  7924,  7608,  7677,  7595,  7402,  7311,  7242,  7115,  7008,  6468,  6282,  6275
 Throughput small inputs of fixed size (from 2 to 2 bytes): 
-xxh3   , 189466440
-XXH32  , 144250396
-XXH64  , 108580066
-XXH128 , 181152785
+xxh3   , 190094662
+XXH32  , 143901650
+XXH64  , 108427855
+XXH128 , 181875956
 benchmarking random size inputs [1-N] : 
-xxh3   , 189623308
-XXH32  , 105421952
-XXH64  ,  88695243
-XXH128 , 181839071
+xxh3   , 190348778
+XXH32  , 103902519
+XXH64  ,  88622043
+XXH128 , 182867900
 Latency for small inputs of fixed size : 
-xxh3   ,  83026481
-XXH32  ,  70317006
-XXH64  ,  61900056
+xxh3   ,  83023041
+XXH32  ,  70782275
+XXH64  ,  61898908
 XXH128 ,  82005400
 Latency for small inputs of random size [1-N] : 
-xxh3   ,  85833985
-XXH32  ,  76186330
-XXH64  ,  65022817
-XXH128 ,  83345583
+xxh3   ,  85870409
+XXH32  ,  76145715
+XXH64  ,  65059249
+XXH128 ,  83387254
 
