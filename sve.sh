@@ -10,6 +10,7 @@ NEON_FULL_LANES="-DXXH3_NEON_LANES=8"
 #CPU_OPTION="-mcpu=neoverse-n1"
 #CPU_OPTION="-mcpu=neoverse-v1"
 #SVE_BITS="-msve-vector-bits=128"
+#NO_PREFETCH="-DXXH_NO_PREFETCH"
 ARCH_OPTION=1
 export CC=clang
 #export CC=gcc
@@ -24,8 +25,8 @@ check_option() {
 			MARCH="-march=armv8-a+sve"
 		fi
 		export PATH=$PATH:$CLANG_PATH
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SVE"
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE $NO_PREFETCH"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SVE $NO_PREFETCH"
 		export DISPATCH=1
 		;;
 	"sve")
@@ -34,8 +35,8 @@ check_option() {
 		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SVE"
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE $NO_PREFETCH"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SVE $NO_PREFETCH"
 		;;
 	"neon+scalar")
 		if [ $ARCH_OPTION ]; then
@@ -43,8 +44,8 @@ check_option() {
 		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON"
-		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_NEON"
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON $NO_PREFETCH"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_NEON $NO_PREFETCH"
 		;;
 	"neon")
 		if [ $ARCH_OPTION ]; then
@@ -52,8 +53,8 @@ check_option() {
 		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES"
-		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES"
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES $NO_PREFETCH"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_NEON $NEON_FULL_LANES $NO_PREFETCH"
 		;;
 	"scalar")
 		if [ $ARCH_OPTION ]; then
@@ -61,8 +62,8 @@ check_option() {
 		fi
 		export PATH=$PATH:$CLANG_PATH
 		export CC=clang
-		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR"
-		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SCALAR"
+		export CPP_FLAGS="-DXXH_VECTOR=XXH_SCALAR $NO_PREFETCH"
+		export CFLAGS="-O3 $MARCH -fPIC -DXXH_VECTOR=XXH_SCALAR $NO_PREFETCH"
 		;;
 	esac
 }
