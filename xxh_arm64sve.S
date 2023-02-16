@@ -127,12 +127,6 @@ ENTRY (XXH3_sve128_internal_loop)
 	mov	z16.d, x12			// save XXH3_PRIME_1
 
 	/*
-	 * prepare index
-	 * p7 and z7 are reserved to use.
-	 */
-	INIT_INDEX
-
-	/*
 	 * nbStripesPerBlock =
 	 * (secretSize - XXH_STRIPE_LEN) / XXH_SECRET_CONSUME_RATE;
 	 */
@@ -179,10 +173,10 @@ ENTRY (XXH3_sve128_internal_loop)
 		eor	z26.d, z26.d, z22.d
 		eor	z27.d, z27.d, z23.d
 		eor	z28.d, z28.d, z24.d
-	tbl	z21.d, {z21.d}, z7.d
-		tbl	z22.d, {z22.d}, z7.d
-		tbl	z23.d, {z23.d}, z7.d
-		tbl	z24.d, {z24.d}, z7.d
+	ext	z21.b, z21.b, z21.b, 8
+		ext	z22.b, z22.b, z22.b, 8
+		ext	z23.b, z23.b, z23.b, 8
+		ext	z24.b, z24.b, z24.b, 8
 	uxtw	z1.d, p7/m, z25.d
 		uxtw	z2.d, p7/m, z26.d
 		uxtw	z3.d, p7/m, z27.d
@@ -278,10 +272,10 @@ ENTRY (XXH3_sve128_internal_loop)
 		eor	z26.d, z26.d, z22.d
 		eor	z27.d, z27.d, z23.d
 		eor	z28.d, z28.d, z24.d
-	tbl	z21.d, {z21.d}, z7.d
-		tbl	z22.d, {z22.d}, z7.d
-		tbl	z23.d, {z23.d}, z7.d
-		tbl	z24.d, {z24.d}, z7.d
+	ext	z21.b, z21.b, z21.b, 8
+		ext	z22.b, z22.b, z22.b, 8
+		ext	z23.b, z23.b, z23.b, 8
+		ext	z24.b, z24.b, z24.b, 8
 	uxtw	z1.d, p7/m, z25.d
 		uxtw	z2.d, p7/m, z26.d
 		uxtw	z3.d, p7/m, z27.d
@@ -334,10 +328,10 @@ ENTRY (XXH3_sve128_internal_loop)
 		eor	z26.d, z26.d, z22.d
 		eor	z27.d, z27.d, z23.d
 		eor	z28.d, z28.d, z24.d
-	tbl	z21.d, {z21.d}, z7.d
-		tbl	z22.d, {z22.d}, z7.d
-		tbl	z23.d, {z23.d}, z7.d
-		tbl	z24.d, {z24.d}, z7.d
+	ext	z21.b, z21.b, z21.b, 8
+		ext	z22.b, z22.b, z22.b, 8
+		ext	z23.b, z23.b, z23.b, 8
+		ext	z24.b, z24.b, z24.b, 8
 	uxtw	z1.d, p7/m, z25.d
 		uxtw	z2.d, p7/m, z26.d
 		uxtw	z3.d, p7/m, z27.d
