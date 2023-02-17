@@ -42,17 +42,20 @@ extern "C" {
 
 #if defined(__GNUC__) || defined(__clang__)
 
-#  define XXH_DISPATCH_SVE	1
-#  define XXH_DISPATCH_NEON	1
-
 #  if defined(__ARM_FEATURE_SVE)
 #    include <arm_sve.h>
+#    define XXH_DISPATCH_SVE	1
+#  else
+#    define XXH_DISPATCH_SVE	0
 #  endif
 #  if defined(__ARM_NEON__) || defined(__ARM_NEON) \
    || defined(_M_ARM) || defined(_M_ARM64) || defined(_M_ARM64EC)
 #    define inline __inline__  /* circumvent a clang bug */
 #    include <arm_neon.h>
+#    define XXH_DISPATCH_NEON	1
 #    undef inline
+#  else
+#    define XXH_DISPATCH_NEON	0
 #  endif
 #endif
 
@@ -185,6 +188,13 @@ typedef XXH64_hash_t (*XXH3_internal_loop)(xxh_u64* XXH_RESTRICT,
                                            const xxh_u8* XXH_RESTRICT, size_t);
 
 static XXH3_internal_loop XXH_g_loop = NULL;
+
+XXH_FORCE_INLINE XXH_errorcode
+XXH3_asm_update_sve(XXH3_state_t* state, const void* input, size_t len)
+{
+	return XXH3_update(state, (const xxh_u8*)input, len,
+			XXH3_accumulate_sve, XXH3_scrambleAcc_scalar);
+}
 
 XXH_FORCE_INLINE XXH64_hash_t
 XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
@@ -334,7 +344,7 @@ static const XXH_dispatchFunctions_s XXH_kDispatch[XXH_NB_DISPATCHES] = {
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
 #  if XXH_DISPATCH_SVE
-    /* SVE    */ { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_update_scalar },
+    /* SVE    */ { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_asm_update_sve },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
@@ -375,7 +385,7 @@ static const XXH_dispatch128Functions_s XXH_kDispatch128[XXH_NB_DISPATCHES] = {
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
 #  if XXH_DISPATCH_SVE
-    /* SVE    */ { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve, XXH3_update_scalar },
+    /* SVE    */ { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve, XXH3_asm_update_sve },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
@@ -393,28 +403,30 @@ static XXH_dispatch128Functions_s XXH_g_dispatch128 = { NULL, NULL, NULL, NULL }
  */
 static void XXH_setDispatch(void)
 {
-#  if XXH_DISPATCH_SVE
-	uint64_t sve;
-	__asm__ __volatile__("cntd %0" : "=r"(sve));
-	switch (sve) {
-	case 2:
-		XXH_g_loop = XXH3_sve128_internal_loop;
-		break;
-	case 4:
-		XXH_g_loop = XXH3_sve256_internal_loop;
-		break;
-	default:
-		XXH_g_loop = XXH3_sve512_internal_loop;
-		break;
-	}
-	XXH_g_dispatch = XXH_kDispatch[2];
-	XXH_g_dispatch128 = XXH_kDispatch128[2];
-#  elif XXH_DISPATCH_NEON
-	XXH_g_dispatch = XXH_kDispatch[1];
-	XXH_g_dispatch128 = XXH_kDispatch128[1];
-#  else
 	XXH_g_dispatch = XXH_kDispatch[0];
 	XXH_g_dispatch128 = XXH_kDispatch128[0];
+#  if XXH_DISPATCH_NEON
+	XXH_g_dispatch = XXH_kDispatch[1];
+	XXH_g_dispatch128 = XXH_kDispatch128[1];
+#  endif
+#  if XXH_DISPATCH_SVE
+	{
+		uint64_t sve;
+		__asm__ __volatile__("cntd %0" : "=r"(sve));
+		switch (sve) {
+		case 2:
+			XXH_g_loop = XXH3_sve128_internal_loop;
+			break;
+		case 4:
+			XXH_g_loop = XXH3_sve256_internal_loop;
+			break;
+		default:
+			XXH_g_loop = XXH3_sve512_internal_loop;
+			break;
+		}
+		XXH_g_dispatch = XXH_kDispatch[2];
+		XXH_g_dispatch128 = XXH_kDispatch128[2];
+	}
 #  endif
 	return;
 }
