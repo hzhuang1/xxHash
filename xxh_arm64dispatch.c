@@ -40,6 +40,22 @@ extern "C" {
 #if defined(__aarch64__)  || defined(__arm64__) || defined(_M_ARM64) \
     || defined(_M_ARM64EC)
 
+#if defined(__GNUC__) || defined(__clang__)
+
+#  define XXH_DISPATCH_SVE	1
+#  define XXH_DISPATCH_NEON	1
+
+#  if defined(__ARM_FEATURE_SVE)
+#    include <arm_sve.h>
+#  endif
+#  if defined(__ARM_NEON__) || defined(__ARM_NEON) \
+   || defined(_M_ARM) || defined(_M_ARM64) || defined(_M_ARM64EC)
+#    define inline __inline__  /* circumvent a clang bug */
+#    include <arm_neon.h>
+#    undef inline
+#  endif
+#endif
+
 #  define XXH_INLINE_ALL
 #  define XXH_ARM64DISPATCH
 #  include "xxhash.h"
@@ -160,7 +176,7 @@ XXHL128_seed_##suffix(const void* XXH_RESTRICT input, size_t len,             \
 #  define XXH3_initCustomSecret_neon   XXH3_initCustomSecret_scalar
 
 XXH_DEFINE_DISPATCH_FUNCS(scalar)
-#  if XXH_VECTOR == XXH_NEON
+#  if XXH_DISPATCH_NEON
 XXH_DEFINE_DISPATCH_FUNCS(neon)
 #  endif
 
@@ -312,12 +328,12 @@ typedef struct {
  */
 static const XXH_dispatchFunctions_s XXH_kDispatch[XXH_NB_DISPATCHES] = {
     /* Scalar */ { XXHL64_default_scalar,  XXHL64_seed_scalar,  XXHL64_secret_scalar,  XXH3_update_scalar },
-#  if XXH_VECTOR == XXH_NEON
+#  if XXH_DISPATCH_NEON
     /* NEON   */ { XXHL64_default_neon,    XXHL64_seed_neon,    XXHL64_secret_neon,    XXH3_update_neon },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
-#  if XXH_VECTOR == XXH_SVE
+#  if XXH_DISPATCH_SVE
     /* SVE    */ { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_update_scalar },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
@@ -353,12 +369,12 @@ typedef struct {
  */
 static const XXH_dispatch128Functions_s XXH_kDispatch128[XXH_NB_DISPATCHES] = {
     /* Scalar */ { XXHL128_default_scalar,  XXHL128_seed_scalar,  XXHL128_secret_scalar,  XXH3_update_scalar },
-#  if XXH_VECTOR == XXH_NEON
+#  if XXH_DISPATCH_NEON
     /* NEON   */ { XXHL128_default_neon,    XXHL128_seed_neon,    XXHL128_secret_neon,    XXH3_update_neon },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
-#  if XXH_VECTOR == XXH_SVE
+#  if XXH_DISPATCH_SVE
     /* SVE    */ { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve, XXH3_update_scalar },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
@@ -377,7 +393,7 @@ static XXH_dispatch128Functions_s XXH_g_dispatch128 = { NULL, NULL, NULL, NULL }
  */
 static void XXH_setDispatch(void)
 {
-#  if XXH_VECTOR == XXH_SVE
+#  if XXH_DISPATCH_SVE
 	uint64_t sve;
 	__asm__ __volatile__("cntd %0" : "=r"(sve));
 	switch (sve) {
@@ -393,7 +409,7 @@ static void XXH_setDispatch(void)
 	}
 	XXH_g_dispatch = XXH_kDispatch[2];
 	XXH_g_dispatch128 = XXH_kDispatch128[2];
-#  elif XXH_VECTOR == XXH_NEON
+#  elif XXH_DISPATCH_NEON
 	XXH_g_dispatch = XXH_kDispatch[1];
 	XXH_g_dispatch128 = XXH_kDispatch128[1];
 #  else
