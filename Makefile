@@ -129,12 +129,10 @@ xxhsum32: CFLAGS += -m32  ## generate CLI in 32-bits mode
 xxhsum32: xxhash.c $(XXHSUM_SPLIT_SRCS) ## do not generate object (avoid mixing different ABI)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
 
-ifeq ($(ARCH), x86_64)
-## dispatch only works for x86/x64 systems
+## dispatch only works for x86/x64 & aarch64 systems
 dispatch: CPPFLAGS += -DXXHSUM_DISPATCH=1
-dispatch: xxhash.o xxh_x86dispatch.o $(XXHSUM_SPLIT_SRCS)
+dispatch: xxhash.o $(DISPATCH_OBJS) $(XXHSUM_SPLIT_SRCS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
-endif
 
 xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
