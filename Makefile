@@ -158,6 +158,9 @@ xxhsum_inlinedXXH: $(XXHSUM_SPLIT_SRCS)
 # library
 
 libxxhash.a: ARFLAGS = rcs
+ifeq ($(DISPATCH),1)
+libxxhash.a: $(DISPATCH_OBJS)
+endif
 libxxhash.a: xxhash.o
 	$(AR) $(ARFLAGS) $@ $^
 
