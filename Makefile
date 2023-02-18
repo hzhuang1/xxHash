@@ -47,6 +47,7 @@ CFLAGS += $(DEBUGFLAGS) $(MOREFLAGS)
 FLAGS   = $(CFLAGS) $(CPPFLAGS)
 XXHSUM_VERSION = $(LIBVER)
 UNAME := $(shell uname)
+UNAME_ARCH := $(shell uname -p)
 
 # Define *.exe as extension for Windows systems
 ifneq (,$(filter Windows%,$(OS)))
@@ -67,6 +68,22 @@ else
 	SHARED_EXT = so
 	SHARED_EXT_MAJOR = $(SHARED_EXT).$(LIBVER_MAJOR)
 	SHARED_EXT_VER = $(SHARED_EXT).$(LIBVER)
+endif
+
+ifeq ($(UNAME), Darwin)
+	ifeq ($(UNAME_ARCH), i386)
+		ARCH = x86_64
+	endif
+	ifeq ($(UNAME_ARCH), arm)
+		ARCH = aarch64
+	endif
+else
+	ifeq ($(UNAME_ARCH), x86_64)
+		ARCH = x86_64
+	endif
+	ifeq ($(UNAME_ARCH), aarch64)
+		ARCH = aarch64
+	endif
 endif
 
 LIBXXH = libxxhash.$(SHARED_EXT_VER)
@@ -94,7 +111,9 @@ default: lib xxhsum_and_links
 all: lib xxhsum xxhsum_inlinedXXH
 
 ## xxhsum is the command line interface (CLI)
+ifeq ($(ARCH), x86_64)
 DISPATCH_OBJS = xxh_x86dispatch.o
+endif	# ARCH x86_64
 DISPATCH_HEADERS = xxh_x86dispatch.h
 ifeq ($(DISPATCH),1)
 xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
@@ -414,6 +433,9 @@ preview-man: man
 
 .PHONY: test
 test: DEBUGFLAGS += -DXXH_DEBUGLEVEL=1
+ifeq ($(ARCH), x86_64)
+test: test-dispatch
+endif
 test: all namespaceTest check test-xxhsum-c c90test test-tools noxxh3test nostdlibtest
 
 .PHONY: test-inline
@@ -468,6 +490,7 @@ trailingWhitespace:
 lint-unicode:
 	./tests/unicode_lint.sh
 
+ifeq ($(ARCH), x86_64)
 TEST_DISPATCH_FILES = xxhash.c xxhash.h
 .PHONY: test-dispatch
 test-dispatch: dispatch
@@ -507,6 +530,7 @@ test-dispatch: dispatch
 	echo "0000000000000000  test-expects-file-not-found" | ./dispatch -H3 -c -; test $$? -eq 1
 	echo "00000000  test-expects-file-not-found" | ./dispatch -H3 -c -; test $$? -eq 1
 	@$(RM) .test.*
+endif
 
 # =========================================================
 # make install is validated only for the following targets
