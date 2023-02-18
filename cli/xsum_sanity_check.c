@@ -30,6 +30,10 @@
 #endif
 #include "../xxhash.h"
 
+#ifdef XXHSUM_DISPATCH
+#  include "../xxh_dispatch.h"
+#endif
+
 #include <stdlib.h>  /* exit */
 #include <assert.h>
 #include <string.h>  /* memcmp */
