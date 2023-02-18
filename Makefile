@@ -94,9 +94,11 @@ default: lib xxhsum_and_links
 all: lib xxhsum xxhsum_inlinedXXH
 
 ## xxhsum is the command line interface (CLI)
+DISPATCH_OBJS = xxh_x86dispatch.o
+DISPATCH_HEADERS = xxh_x86dispatch.h
 ifeq ($(DISPATCH),1)
 xxhsum: CPPFLAGS += -DXXHSUM_DISPATCH=1
-xxhsum: xxh_x86dispatch.o
+xxhsum: $(DISPATCH_OBJS)
 endif
 xxhsum: xxhash.o $(XXHSUM_SPLIT_OBJS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
@@ -107,13 +109,13 @@ xxhsum32: xxhash.c $(XXHSUM_SPLIT_SRCS) ## do not generate object (avoid mixing 
 
 ## dispatch only works for x86/x64 systems
 dispatch: CPPFLAGS += -DXXHSUM_DISPATCH=1
-dispatch: xxhash.o xxh_x86dispatch.o $(XXHSUM_SPLIT_SRCS)
+dispatch: xxhash.o $(DISPATCH_OBJS) $(XXHSUM_SPLIT_SRCS)
 	$(CC) $(FLAGS) $^ $(LDFLAGS) -o $@$(EXT)
 
 xxhash.o: xxhash.c xxhash.h
 xxhsum.o: $(XXHSUM_SRC_DIR)/xxhsum.c $(XXHSUM_HEADERS) \
-    xxhash.h xxh_x86dispatch.h
-xxh_x86dispatch.o: xxh_x86dispatch.c xxh_x86dispatch.h xxhash.h
+    xxhash.h $(DISPATCH_HEADERS)
+xxh_x86dispatch.o: xxh_x86dispatch.c $(DISPATCH_HEADERS) xxhash.h
 
 .PHONY: xxhsum_and_links
 xxhsum_and_links: xxhsum xxh32sum xxh64sum xxh128sum
@@ -137,7 +139,7 @@ ifeq (,$(filter Windows%,$(OS)))
 $(LIBXXH): CFLAGS += -fPIC
 endif
 ifeq ($(DISPATCH),1)
-$(LIBXXH): xxh_x86dispatch.c
+$(LIBXXH): $(DISPATCH_OBJS)
 endif
 $(LIBXXH): xxhash.c
 	$(CC) $(FLAGS) $^ $(LDFLAGS) $(SONAME_FLAGS) -o $@
@@ -466,6 +468,46 @@ trailingWhitespace:
 lint-unicode:
 	./tests/unicode_lint.sh
 
+TEST_DISPATCH_FILES = xxhash.c xxhash.h
+.PHONY: test-dispatch
+test-dispatch: dispatch
+	# dispatch to/from pipe
+	./dispatch -H3 $(TEST_DISPATCH_FILES) | ./dispatch -H3 -c -
+	# dispatch -c is unable to verify checksum of file from STDIN (#470)
+	./dispatch -H3 < README.md > .test.README.md.xxh3
+	./dispatch -H3 -c .test.README.md.xxh3 < README.md
+	# dispatch -q does not display "Loading" message into stderr (#251)
+	! ./dispatch -H3 -q $(TEST_DISPATCH_FILES) 2>&1 | grep Loading
+	# dispatch does not display "Loading" message into stderr either
+	! ./dispatch -H3 $(TEST_DISPATCH_FILES) 2>&1 | grep Loading
+	# Check that dispatch do display filename that it failed to open.
+	LC_ALL=C ./dispatch -H3 nonexistent 2>&1 | grep "Error: Could not open 'nonexistent'"
+	# dispatch to/from file, shell redirection
+	./dispatch -H3 $(TEST_DISPATCH_FILES) > .test.xxh3
+	./dispatch -H3 --tag $(TEST_DISPATCH_FILES) > .test.xxh3_tag
+	./dispatch -H3 --little-endian $(TEST_DISPATCH_FILES) > .test.le_xxh3
+	./dispatch -H3 --tag --little-endian $(TEST_DISPATCH_FILES) > .test.le_xxh3_tag
+	./dispatch -H3 -c .test.xxh*
+	./dispatch -H3 -c --little-endian .test.le_xxh*
+	./dispatch -H3 -c .test.*_tag
+	# read list of files from stdin
+	./dispatch -H3 -c < .test.xxh3
+	cat .test.xxh* | ./dispatch -c -
+	# bsd-style output
+	./dispatch --tag -H3 xxhsum* | $(GREP) XXH3
+	./dispatch       -H3 xxhsum* | $(GREP) XXH3  # --tag is implicit for H3
+	./dispatch       -H3 --little-endian xxhsum* | $(GREP) XXH3_LE
+	# check bsd-style
+	./dispatch --tag -H3 xxhsum* | ./dispatch -c
+	./dispatch --tag -H3 --little-endian xxhsum* | ./dispatch -c
+	# Expects "FAILED"
+	echo "0000000000000000  LICENSE" | ./dispatch -H3 -c -; test $$? -eq 1
+	echo "00000000  LICENSE" | ./dispatch -H3 -c -; test $$? -eq 1
+	# Expects "FAILED open or read"
+	echo "0000000000000000  test-expects-file-not-found" | ./dispatch -H3 -c -; test $$? -eq 1
+	echo "00000000  test-expects-file-not-found" | ./dispatch -H3 -c -; test $$? -eq 1
+	@$(RM) .test.*
+
 # =========================================================
 # make install is validated only for the following targets
 # =========================================================
@@ -563,7 +605,7 @@ install_libxxhash.includes:
 	$(Q)$(INSTALL_DATA) xxhash.h $(DESTDIR)$(INCLUDEDIR)
 	$(Q)$(INSTALL_DATA) xxh3.h $(DESTDIR)$(INCLUDEDIR) # for compatibility, will be removed in v0.9.0
 ifeq ($(DISPATCH),1)
-	$(Q)$(INSTALL_DATA) xxh_x86dispatch.h $(DESTDIR)$(INCLUDEDIR)
+	$(Q)$(INSTALL_DATA) $(DISPATCH_HEADERS) $(DESTDIR)$(INCLUDEDIR)
 endif
 
 install_libxxhash.pc: libxxhash.pc
@@ -599,7 +641,7 @@ uninstall:  ## uninstall libraries, CLI, links and man page
 	$(Q)$(RM) $(DESTDIR)$(LIBDIR)/$(LIBXXH)
 	$(Q)$(RM) $(DESTDIR)$(INCLUDEDIR)/xxhash.h
 	$(Q)$(RM) $(DESTDIR)$(INCLUDEDIR)/xxh3.h
-	$(Q)$(RM) $(DESTDIR)$(INCLUDEDIR)/xxh_x86dispatch.h
+	$(Q)$(RM) $(DESTDIR)$(INCLUDEDIR)/$(DISPATCH_HEADERS)
 	$(Q)$(RM) $(DESTDIR)$(PKGCONFIGDIR)/libxxhash.pc
 	$(Q)$(RM) $(DESTDIR)$(BINDIR)/xxh32sum
 	$(Q)$(RM) $(DESTDIR)$(BINDIR)/xxh64sum
