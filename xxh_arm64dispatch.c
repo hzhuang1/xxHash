@@ -189,12 +189,14 @@ typedef XXH64_hash_t (*XXH3_internal_loop)(xxh_u64* XXH_RESTRICT,
 
 static XXH3_internal_loop XXH_g_loop = NULL;
 
+/*
 XXH_FORCE_INLINE XXH_errorcode
 XXH3_asm_update_sve(XXH3_state_t* state, const void* input, size_t len)
 {
 	return XXH3_update(state, (const xxh_u8*)input, len,
 			XXH3_accumulate_sve, XXH3_scrambleAcc_scalar);
 }
+*/
 
 XXH_FORCE_INLINE XXH64_hash_t
 XXH3_64b_internal_sve(const void* XXH_RESTRICT input, size_t len,
@@ -344,7 +346,7 @@ static const XXH_dispatchFunctions_s XXH_kDispatch[XXH_NB_DISPATCHES] = {
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
 #  if XXH_DISPATCH_SVE
-    /* SVE    */ { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_asm_update_sve },
+    /* SVE    */ { XXHL64_asm_default_sve, XXHL64_asm_seed_sve, XXHL64_asm_secret_sve, XXH3_update_scalar },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
@@ -385,7 +387,7 @@ static const XXH_dispatch128Functions_s XXH_kDispatch128[XXH_NB_DISPATCHES] = {
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
 #  if XXH_DISPATCH_SVE
-    /* SVE    */ { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve, XXH3_asm_update_sve },
+    /* SVE    */ { XXHL128_asm_default_sve, XXHL128_asm_seed_sve, XXHL128_asm_secret_sve, XXH3_update_scalar },
 #  else
                  { NULL,                    NULL,                 NULL,                   NULL },
 #  endif
