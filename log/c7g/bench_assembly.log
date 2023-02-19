@@ -1,5 +1,5 @@
 rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
-clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o main.o main.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o main.o main.c
 In file included from main.c:36:
 In file included from ./hashes.h:68:
 ./../../xxh_dispatch.h:44:30: warning: function 'XXH3_64bits_dispatch' has internal linkage but is not defined [-Wundefined-internal]
@@ -21,38 +21,38 @@ XXH_PUBLIC_API XXH128_hash_t XXH3_128bits_dispatch(XXH_NOESCAPE const void* inpu
 # define XXH3_128bits XXH3_128bits_dispatch
                       ^
 2 warnings generated.
-clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o bhDisplay.o bhDisplay.c
-clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchHash.o benchHash.c
-clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchfn.o benchfn.c
-clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o timefn.o timefn.c
-clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
-clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o bhDisplay.o bhDisplay.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchHash.o benchHash.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchfn.o benchfn.c
+clang -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o timefn.o timefn.c
+clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
+clang -I../..    -O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE  -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
 g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o xxh_arm64dispatch.o xxh_arm64sve.o  -o benchHash
 /usr/bin/ld: warning: xxh_arm64sve.o: unsupported GNU_PROPERTY_TYPE (5) type: 0xc0000000
  ===  benchmarking 4 hash functions  === 
 benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
-xxh3   , 14105, 16872, 18129, 18687, 18484, 18471, 18503, 18470, 16905, 16938, 16483, 16389, 16863, 16853, 16854, 16716, 16594, 16458, 16448
-XXH32  ,  9508,  9922, 10150, 10262, 10259, 10321, 10353, 10338, 10352, 10350, 10338,  9642, 10172, 10052,  9799, 10235, 10286, 10288, 10320
-XXH64  , 11370, 12499, 13125, 13492, 13664, 13742, 13796, 13794, 13825, 13839, 13844, 13721, 13845, 13838, 13724, 13664, 13720, 13784, 13804
-XXH128 , 12020, 14624, 16897, 17558, 18079, 18354, 18397, 18441, 16926, 16971, 16983, 16572, 16900, 16911, 16885, 16802, 16583, 16509, 16490
+xxh3   , 14343, 17168, 18386, 19165, 19415, 19556, 19677, 19536, 16962, 16991, 16975, 16933, 16960, 16956, 16944, 16829, 16626, 16554, 16539
+XXH32  ,  9477,  9888, 10157, 10254, 10261, 10325, 10352, 10341, 10353, 10372, 10380, 10232, 10375, 10362, 10341, 10253, 10248, 10285, 10298
+XXH64  , 11410, 12486, 13148, 13493, 13671, 13744, 13793, 13793, 13823, 13840, 13847, 13617, 13837, 13836, 13808, 13706, 13730, 13798, 13811
+XXH128 , 12260, 14666, 17066, 18106, 18950, 19366, 19571, 19506, 18493, 18540, 18555, 18031, 16969, 16960, 16951, 16861, 16620, 16558, 16529
 Throughput small inputs of fixed size (from 2 to 2 bytes): 
-xxh3   , 259347059
-XXH32  , 259310450
-XXH64  , 186350347
-XXH128 , 235753322
+xxh3   , 259358603
+XXH32  , 279472155
+XXH64  , 185799255
+XXH128 , 235728025
 benchmarking random size inputs [1-N] : 
-xxh3   , 308506134
-XXH32  , 191959568
-XXH64  , 142376721
-XXH128 , 235725252
+xxh3   , 259355992
+XXH32  , 192290199
+XXH64  , 140370192
+XXH128 , 236056786
 Latency for small inputs of fixed size : 
-xxh3   , 115983717
-XXH32  ,  99074139
-XXH64  ,  95626856
-XXH128 , 117238459
+xxh3   , 116250750
+XXH32  ,  99026031
+XXH64  ,  95451230
+XXH128 , 116718742
 Latency for small inputs of random size [1-N] : 
-xxh3   , 116657253
-XXH32  , 105997588
-XXH64  , 100600768
-XXH128 , 117218960
+xxh3   , 116813909
+XXH32  , 105960771
+XXH64  ,  99785136
+XXH128 , 116591638
 
