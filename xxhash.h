@@ -3523,6 +3523,25 @@ do { \
     svuint64_t mul = svmad_u64_x(mask, mixed_lo, mixed_hi, swapped); \
     acc = svadd_u64_x(mask, acc, mul);                               \
 } while (0)
+#define ACCRND2(acc0, offset0, acc1, offset1) \
+do { \
+    svuint64_t input_vec0 = svld1_u64(mask, xinput + offset0);		\
+    svuint64_t input_vec1 = svld1_u64(mask, xinput + offset1);		\
+    svuint64_t secret_vec0 = svld1_u64(mask, xsecret + offset0);	\
+    svuint64_t secret_vec1 = svld1_u64(mask, xsecret + offset1);	\
+    svuint64_t mixed0 = sveor_u64_x(mask, secret_vec0, input_vec0);	\
+    svuint64_t mixed1 = sveor_u64_x(mask, secret_vec1, input_vec1);	\
+    svuint64_t swapped0 = svtbl_u64(input_vec0, kSwap);			\
+    svuint64_t swapped1 = svtbl_u64(input_vec1, kSwap);			\
+    svuint64_t mixed_lo0 = svextw_u64_x(mask, mixed0);			\
+    svuint64_t mixed_lo1 = svextw_u64_x(mask, mixed1);			\
+    svuint64_t mixed_hi0 = svlsr_n_u64_x(mask, mixed0, 32);		\
+    svuint64_t mixed_hi1 = svlsr_n_u64_x(mask, mixed1, 32);		\
+    svuint64_t mul0 = svmad_u64_x(mask, mixed_lo0, mixed_hi0, swapped0); \
+    svuint64_t mul1 = svmad_u64_x(mask, mixed_lo1, mixed_hi1, swapped1); \
+    acc0 = svadd_u64_x(mask, acc0, mul0);				\
+    acc1 = svadd_u64_x(mask, acc1, mul1);				\
+} while (0)
 #endif /* XXH_VECTOR == XXH_SVE */
 
 
@@ -4828,15 +4847,15 @@ XXH3_accumulate_sve(xxh_u64* XXH_RESTRICT acc,
             svuint64_t acc0 = svld1_u64(mask, xacc + 0);
             svuint64_t acc1 = svld1_u64(mask, xacc + 4);
             do {
-#  if !defined(XXH_NO_PREFETCH)
-                svprfd(mask, (const void *)(xinput + 128), SV_PLDL1STRM);
-#  endif
                 ACCRND(acc0, 0);
                 ACCRND(acc1, 4);
+#  if !defined(XXH_NO_PREFETCH)
+		if ((nbStripes & 0xf) == 0)
+                	svprfd(mask, (const void *)(xinput + 128), SV_PLDL1STRM);
+#  endif
                 xinput += 8;
                 xsecret += 1;
-                nbStripes--;
-           } while (nbStripes != 0);
+           } while (--nbStripes != 0);
 
            svst1_u64(mask, xacc + 0, acc0);
            svst1_u64(mask, xacc + 4, acc1);
