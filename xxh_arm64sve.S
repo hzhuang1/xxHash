@@ -425,23 +425,27 @@ ENTRY (XXH3_sve256_internal_loop)
 		ldr	z20, [x1, #1, MUL VL]
 	ldr	z21, [x2, #0, MUL VL]
 		ldr	z22, [x2, #1, MUL VL]
-	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z21.d, z21.d, z19.d
 		eor	z22.d, z22.d, z20.d
 	tbl	z19.d, {z19.d}, z7.d
 		tbl	z20.d, {z20.d}, z7.d
+	add	x1, x1, #64
+	add	x2, x2, #8
 	uxtw	z23.d, p7/m, z21.d
 		uxtw	z24.d, p7/m, z22.d
+	add	x10, x10, #1
 	lsr	z21.d, p7/m, z21.d, #32
 		lsr	z22.d, p7/m, z22.d, #32
+	tst	x10, #0xf
 	mad	z21.d, p7/m, z23.d, z19.d
 		mad	z22.d, p7/m, z24.d, z20.d
+	b.ne	104f
+	PRFD	PLDL1STRM, p7, [x1, #16, MUL VL]
+	//PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+104:
 	add	z17.d, p7/m, z17.d, z21.d
 		add	z18.d, p7/m, z18.d, z22.d
 
-	add	x1, x1, #64
-	add	x2, x2, #8
-	add	x10, x10, #1
 	cmp	x10, x3
 	b.lt	10b
 11:
@@ -457,17 +461,17 @@ ENTRY (XXH3_sve256_internal_loop)
 */
 	ldr	z19, [x1, #0, MUL VL]
 		ldr	z20, [x1, #1, MUL VL]
+	add	x9, x9, #1
 	eor	z19.d, z17.d, z19.d
 		eor	z20.d, z18.d, z20.d
 	lsr	z21.d, z17.d, #47
 		lsr	z22.d, z18.d, #47
+	cmp	x9, x20
 	eor	z17.d, z19.d, z21.d
 		eor	z18.d, z20.d, z22.d
 	mul	z17.d, p7/m, z17.d, z16.d
 		mul	z18.d, p7/m, z18.d, z16.d
 	/* end scramble function */
-	add	x9, x9, #1
-	cmp	x9, x20
 	b.lt	0b
 1:
 	/*
@@ -496,23 +500,26 @@ ENTRY (XXH3_sve256_internal_loop)
 		ldr	z20, [x1, #1, MUL VL]
 	ldr	z21, [x2, #0, MUL VL]
 		ldr	z22, [x2, #1, MUL VL]
-	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z21.d, z21.d, z19.d
 		eor	z22.d, z22.d, z20.d
 	tbl	z19.d, {z19.d}, z7.d
 		tbl	z20.d, {z20.d}, z7.d
+	add	x1, x1, #64
+	add	x2, x2, #8
 	uxtw	z23.d, p7/m, z21.d
 		uxtw	z24.d, p7/m, z22.d
+	add	x10, x10, #1
 	lsr	z21.d, p7/m, z21.d, #32
 		lsr	z22.d, p7/m, z22.d, #32
+	tst	x10, #0xf
 	mad	z21.d, p7/m, z23.d, z19.d
 		mad	z22.d, p7/m, z24.d, z20.d
+	b.ne	204f
+	PRFD	PLDL1STRM, p7, [x1, #16, MUL VL]
+204:
 	add	z17.d, p7/m, z17.d, z21.d
 		add	z18.d, p7/m, z18.d, z22.d
 
-	add	x1, x1, #64
-	add	x2, x2, #8
-	add	x10, x10, #1
 	cmp	x10, x3
 	b.lt	20b
 21:
@@ -536,7 +543,6 @@ ENTRY (XXH3_sve256_internal_loop)
 		ldr	z20, [x1, #1, MUL VL]
 	ldr	z21, [x2, #0, MUL VL]
 		ldr	z22, [x2, #1, MUL VL]
-	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z21.d, z21.d, z19.d
 		eor	z22.d, z22.d, z20.d
 	tbl	z19.d, {z19.d}, z7.d
