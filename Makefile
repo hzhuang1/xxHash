@@ -242,10 +242,12 @@ VALGRIND = valgrind --leak-check=yes --error-exitcode=1
 test-mem: RUN_ENV = $(VALGRIND)
 test-mem: xxhsum check
 
+ifeq ($(ARCH), x86_64)
 .PHONY: test32
 test32: xxhsum32
 	@echo ---- test 32-bit ----
 	./xxhsum32 -bi0 xxhash.c
+endif
 
 TEST_FILES = xxhsum$(EXT) xxhash.c xxhash.h
 .PHONY: test-xxhsum-c
@@ -444,7 +446,10 @@ test-inline:
 
 .PHONY: test-all
 test-all: CFLAGS += -Werror
-test-all: test test32 test-unicode clangtest cxxtest usan test-inline listL120 trailingWhitespace test-xxh-nnn-sums
+ifeq ($(ARCH), x86_64)
+test-all: test32
+endif
+test-all: test test-unicode clangtest cxxtest usan test-inline listL120 trailingWhitespace test-xxh-nnn-sums
 
 .PHONY: test-tools
 test-tools:
