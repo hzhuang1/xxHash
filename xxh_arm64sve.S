@@ -168,7 +168,6 @@ ENTRY (XXH3_sve128_internal_loop)
 		ldr	z27, [x2, #2, MUL VL]
 		ldr	z24, [x1, #3, MUL VL]
 		ldr	z28, [x2, #3, MUL VL]
-	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z25.d, z25.d, z21.d
 		eor	z26.d, z26.d, z22.d
 		eor	z27.d, z27.d, z23.d
@@ -177,25 +176,29 @@ ENTRY (XXH3_sve128_internal_loop)
 		ext	z22.b, z22.b, z22.b, 8
 		ext	z23.b, z23.b, z23.b, 8
 		ext	z24.b, z24.b, z24.b, 8
+	add	x1, x1, #64
+	add	x2, x2, #8
 	uxtw	z1.d, p7/m, z25.d
 		uxtw	z2.d, p7/m, z26.d
 		uxtw	z3.d, p7/m, z27.d
 		uxtw	z4.d, p7/m, z28.d
+	add	x10, x10, #1
 	lsr	z25.d, p7/m, z25.d, #32
 		lsr	z26.d, p7/m, z26.d, #32
 		lsr	z27.d, p7/m, z27.d, #32
 		lsr	z28.d, p7/m, z28.d, #32
+	tst	x10, #0xf
 	mad	z25.d, p7/m, z1.d, z21.d
 		mad	z26.d, p7/m, z2.d, z22.d
 		mad	z27.d, p7/m, z3.d, z23.d
 		mad	z28.d, p7/m, z4.d, z24.d
+	b.ne	104f
+	PRFD	PLDL1STRM, p7, [x1, #16, MUL VL]
+104:
 	add	z17.d, p7/m, z17.d, z25.d
 		add	z18.d, p7/m, z18.d, z26.d
 		add	z19.d, p7/m, z19.d, z27.d
 		add	z20.d, p7/m, z20.d, z28.d
-	add	x1, x1, #64
-	add	x2, x2, #8
-	add	x10, x10, #1
 	cmp	x10, x3
 	b.lt	10b
 11:
@@ -215,6 +218,7 @@ ENTRY (XXH3_sve128_internal_loop)
 		ldr	z22, [x1, #1, MUL VL]
 		ldr	z23, [x1, #2, MUL VL]
 		ldr	z24, [x1, #3, MUL VL]
+	add	x9, x9, #1
 	eor	z21.d, z17.d, z21.d
 		eor	z22.d, z18.d, z22.d
 		eor	z23.d, z19.d, z23.d
@@ -223,6 +227,7 @@ ENTRY (XXH3_sve128_internal_loop)
 		lsr	z26.d, z18.d, #47
 		lsr	z27.d, z19.d, #47
 		lsr	z28.d, z20.d, #47
+	cmp	x9, x20
 	eor	z17.d, z21.d, z25.d
 		eor	z18.d, z22.d, z26.d
 		eor	z19.d, z23.d, z27.d
@@ -232,8 +237,6 @@ ENTRY (XXH3_sve128_internal_loop)
 		mul	z19.d, p7/m, z19.d, z16.d
 		mul	z20.d, p7/m, z20.d, z16.d
 	/* end scramble function */
-	add	x9, x9, #1
-	cmp	x9, x20
 	b.lt	0b
 1:
 	/*
@@ -267,7 +270,6 @@ ENTRY (XXH3_sve128_internal_loop)
 		ldr	z27, [x2, #2, MUL VL]
 		ldr	z24, [x1, #3, MUL VL]
 		ldr	z28, [x2, #3, MUL VL]
-	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z25.d, z25.d, z21.d
 		eor	z26.d, z26.d, z22.d
 		eor	z27.d, z27.d, z23.d
@@ -276,25 +278,29 @@ ENTRY (XXH3_sve128_internal_loop)
 		ext	z22.b, z22.b, z22.b, 8
 		ext	z23.b, z23.b, z23.b, 8
 		ext	z24.b, z24.b, z24.b, 8
+	add	x1, x1, #64
+	add	x2, x2, #8
 	uxtw	z1.d, p7/m, z25.d
 		uxtw	z2.d, p7/m, z26.d
 		uxtw	z3.d, p7/m, z27.d
 		uxtw	z4.d, p7/m, z28.d
+	add	x10, x10, #1
 	lsr	z25.d, p7/m, z25.d, #32
 		lsr	z26.d, p7/m, z26.d, #32
 		lsr	z27.d, p7/m, z27.d, #32
 		lsr	z28.d, p7/m, z28.d, #32
+	tst	x10, #0xf
 	mad	z25.d, p7/m, z1.d, z21.d
 		mad	z26.d, p7/m, z2.d, z22.d
 		mad	z27.d, p7/m, z3.d, z23.d
 		mad	z28.d, p7/m, z4.d, z24.d
+	b.ne	204f
+	PRFD	PLDL1STRM, p7, [x1, #16, MUL VL]
+204:
 	add	z17.d, p7/m, z17.d, z25.d
 		add	z18.d, p7/m, z18.d, z26.d
 		add	z19.d, p7/m, z19.d, z27.d
 		add	z20.d, p7/m, z20.d, z28.d
-	add	x1, x1, #64
-	add	x2, x2, #8
-	add	x10, x10, #1
 	cmp	x10, x3
 	b.lt	20b
 21:
@@ -323,7 +329,6 @@ ENTRY (XXH3_sve128_internal_loop)
 		ldr	z27, [x2, #2, MUL VL]
 		ldr	z24, [x1, #3, MUL VL]
 		ldr	z28, [x2, #3, MUL VL]
-	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
 	eor	z25.d, z25.d, z21.d
 		eor	z26.d, z26.d, z22.d
 		eor	z27.d, z27.d, z23.d
