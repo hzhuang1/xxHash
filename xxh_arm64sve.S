@@ -626,14 +626,45 @@ ENTRY (XXH3_sve512_internal_loop)
 	cmp	x10, x3
 	b.ge	11f
 10:
+#if 0
 	/* start acc512 function */
+	add	x17, x1, #4096
 	ACCRND	z0.d, #0, MUL VL
 	// always store acc in z0
 	/* end acc512 function */
+	//cmp	x10, #2048
+	//b.lt	104f
+	PRFD	PLDL2KEEP, p7, [x17, #0, MUL VL]
+104:
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
 	cmp	x10, x3
+#else
+	// load input
+	ld1d	{z1.d}, p7/z, [x1, #0, MUL VL]
+	// load secret
+	ld1d	{z2.d}, p7/z, [x2, #0, MUL VL]
+	add	x17, x1, #2048
+	// mixed = secret EOR input
+	eor	z2.d, p7/m, z2.d, z1.d
+	PRFD	PLDL1STRM, p7, [x1, #31, MUL VL]
+	// swapped = SWAP(input)
+	tbl	z1.d, {z1.d}, z7.d
+	add	x1, x1, #64
+	PRFD	PLDL2KEEP, p7, [x17, #0, MUL VL]
+	add	x2, x2, #8
+	// mixed_lo = mixed AND 0xffffffff (technically (u64)(u32) mixed)
+	uxtw	z6.d, p7/m, z2.d
+	add	x10, x10, #1
+	// mixed_hi = mixed >> 32
+	lsr	z2.d, p7/m, z2.d, #32
+	cmp	x10, x3
+	// mixed_lo = mixed_hi * mixed_lo + swapped (distributive property)
+	mad	z2.d, p7/m, z6.d, z1.d
+	// acc += mixed_lo
+	add	z0.d, p7/m, z0.d, z2.d
+#endif
 	b.lt	10b
 11:
 	/* end accumulate function */
