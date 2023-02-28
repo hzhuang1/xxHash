@@ -1,0 +1,64 @@
+rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_hw
+gcc-10 -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o main.o main.c
+In file included from hashes.h:68,
+                 from main.c:36:
+../../xxh_dispatch.h:44:30: warning: ‘XXH3_64bits_dispatch’ used but never defined
+   44 | XXH_PUBLIC_API XXH64_hash_t  XXH3_64bits_dispatch(XXH_NOESCAPE const void* input, size_t len);
+      |                              ^~~~~~~~~~~~~~~~~~~~
+../../xxh_dispatch.h:45:30: warning: ‘XXH3_64bits_withSeed_dispatch’ declared ‘static’ but never defined [-Wunused-function]
+   45 | XXH_PUBLIC_API XXH64_hash_t  XXH3_64bits_withSeed_dispatch(XXH_NOESCAPE const void* input, size_t len, XXH64_hash_t seed);
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../../xxh_dispatch.h:46:30: warning: ‘XXH3_64bits_withSecret_dispatch’ declared ‘static’ but never defined [-Wunused-function]
+   46 | XXH_PUBLIC_API XXH64_hash_t  XXH3_64bits_withSecret_dispatch(XXH_NOESCAPE const void* input, size_t len, XXH_NOESCAPE const void* secret, size_t secretLen);
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from hashes.h:68,
+                 from main.c:36:
+../../xxh_dispatch.h:47:30: warning: ‘XXH3_64bits_update_dispatch’ declared ‘static’ but never defined [-Wunused-function]
+   47 | XXH_PUBLIC_API XXH_errorcode XXH3_64bits_update_dispatch(XXH_NOESCAPE XXH3_state_t* state, XXH_NOESCAPE const void* input, size_t len);
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+../../xxh_dispatch.h:49:30: warning: ‘XXH3_128bits_dispatch’ used but never defined
+   49 | XXH_PUBLIC_API XXH128_hash_t XXH3_128bits_dispatch(XXH_NOESCAPE const void* input, size_t len);
+      |                              ^~~~~~~~~~~~~~~~~~~~~
+../../xxh_dispatch.h:50:30: warning: ‘XXH3_128bits_withSeed_dispatch’ declared ‘static’ but never defined [-Wunused-function]
+   50 | XXH_PUBLIC_API XXH128_hash_t XXH3_128bits_withSeed_dispatch(XXH_NOESCAPE const void* input, size_t len, XXH64_hash_t seed);
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../../xxh_dispatch.h:51:30: warning: ‘XXH3_128bits_withSecret_dispatch’ declared ‘static’ but never defined [-Wunused-function]
+   51 | XXH_PUBLIC_API XXH128_hash_t XXH3_128bits_withSecret_dispatch(XXH_NOESCAPE const void* input, size_t len, XXH_NOESCAPE const void* secret, size_t secretLen);
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../../xxh_dispatch.h:52:30: warning: ‘XXH3_128bits_update_dispatch’ declared ‘static’ but never defined [-Wunused-function]
+   52 | XXH_PUBLIC_API XXH_errorcode XXH3_128bits_update_dispatch(XXH_NOESCAPE XXH3_state_t* state, XXH_NOESCAPE const void* input, size_t len);
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+gcc-10 -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o bhDisplay.o bhDisplay.c
+gcc-10 -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchHash.o benchHash.c
+gcc-10 -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o benchfn.o benchfn.c
+gcc-10 -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -I../..     -c -o timefn.o timefn.c
+gcc-10 -I../..    -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64dispatch.o -c ../../xxh_arm64dispatch.c
+gcc-10 -I../..    -O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE -Wall -Wextra -Wstrict-aliasing=1 -std=c99     -DARM64_DISPATCH=1 -o xxh_arm64sve.o -c ../../xxh_arm64sve.S
+g++ -I../..    -O3 main.o bhDisplay.o benchHash.o benchfn.o timefn.o xxh_arm64dispatch.o xxh_arm64sve.o  -o benchHash
+ ===  benchmarking 4 hash functions  === 
+benchmarking large inputs : from 512 bytes (log9) to 128 MB (log27) 
+xxh3   , 10981, 13148, 14309, 14798, 15061, 15193, 15241, 15249, 15276, 15291, 15128, 10509, 14431, 15051, 15108, 15174, 15145, 14783, 14950
+XXH32  ,  9894, 10388, 10661, 10804, 10803, 10876, 10911, 10900, 10909, 10924, 10913, 10789, 10916, 10912, 10913, 10915, 10904, 10728, 10845
+XXH64  , 12597, 13885, 14589, 14999, 15192, 15264, 15346, 15318, 15348, 15344, 15344, 15010, 15317, 15314, 15317, 15330, 15334, 14950, 15204
+XXH128 ,  9541, 12022, 13579, 14396, 14854, 15083, 15187, 15223, 15257, 15283, 15245, 11207, 14088, 14242, 14307, 14739, 15137, 14793, 14956
+Throughput small inputs of fixed size (from 2 to 2 bytes): 
+xxh3   , 275026157
+XXH32  , 273186112
+XXH64  , 224696285
+XXH128 , 241681024
+benchmarking random size inputs [1-N] : 
+xxh3   , 274776718
+XXH32  , 194196809
+XXH64  , 145066460
+XXH128 , 241516133
+Latency for small inputs of fixed size : 
+xxh3   , 127443770
+XXH32  , 100972221
+XXH64  ,  96208146
+XXH128 , 122191243
+Latency for small inputs of random size [1-N] : 
+xxh3   , 127442621
+XXH32  , 107495690
+XXH64  , 102684714
+XXH128 , 122375483
+

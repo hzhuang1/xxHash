@@ -19,10 +19,10 @@ WORKSPACE=$PWD
 check_option() {
 	case $OPTION in
 	"clang13+sve+arch+asm")
-		export PATH=$PATH:$CLANG13_PATH
-		export CC=clang
+		#export PATH=$PATH:$CLANG13_PATH
+		export CC=gcc-10
 		export CPP_FLAGS="-DXXH_VECTOR=XXH_SVE"
-		export CFLAGS="-O3 -march=armv8-a+sve -fPIC -DXXH_VECTOR=XXH_SVE"
+		export CFLAGS="-O3 -march=armv8-a+sve2 -fPIC -DXXH_VECTOR=XXH_SVE"
 		#export CFLAGS="-O3 -march=armv8-a+sve -fPIC"
 		export DISPATCH=1
 		;;
