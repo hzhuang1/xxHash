@@ -33,7 +33,7 @@
  *   - xxHash source repository: https://github.com/Cyan4973/xxHash
  */
 
-	.arch armv8-a+sve
+	.arch armv8-a+sve2
 
 #include "asmdefs.h"
 
@@ -156,6 +156,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	cmp	x10, x3
 	b.ge	11f
 10:
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
@@ -164,6 +165,54 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z18.d, #1, MUL VL
 	ACCRND	z19.d, #2, MUL VL
 	ACCRND	z20.d, #3, MUL VL
+*/
+#if 1
+	// v21-v24: input
+	ldr	q21, [x1, #0]
+	ldr	q22, [x1, #16]
+	ldr	q23, [x1, #32]
+	ldr	q24, [x1, #48]
+
+	// v25-v28: secret
+	ldr	q25, [x2, #0]
+	ldr	q26, [x2, #16]
+	ldr	q27, [x2, #32]
+	ldr	q28, [x2, #48]
+	PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
+
+	// v9-v12: mixed_lo
+	eor	v3.16b, v21.16b, v25.16b
+	eor	v4.16b, v22.16b, v26.16b
+	eor	v5.16b, v23.16b, v27.16b
+	eor	v8.16b, v24.16b, v28.16b
+	//Why I can't touch v9-v12? It causes stucking.
+	//eor	v9.16b, v21.16b, v25.16b
+	//eor	v10.16b, v22.16b, v26.16b
+	//eor	v11.16b, v23.16b, v27.16b
+	//eor	v12.16b, v24.16b, v28.16b
+
+	// v13-v16: swapped
+	ext	v13.16b, v21.16b, v21.16b, #8
+	ext	v14.16b, v22.16b, v22.16b, #8
+	ext	v15.16b, v23.16b, v23.16b, #8
+	ext	v16.16b, v24.16b, v24.16b, #8
+
+	// v25-v28: mixed_hi
+	rev64	v25.4s, v9.4s
+	rev64	v26.4s,	v10.4s
+	rev64	v27.4s, v11.4s
+	rev64	v28.4s, v12.4s
+
+	umlalb	z13.d, z3.s, z25.s
+	umlalb	z14.d, z4.s, z26.s
+	umlalb	z15.d, z5.s, z27.s
+	umlalb	z16.d, z8.s, z28.s
+
+	add	v17.2d, v17.2d, v13.2d
+	add	v18.2d, v18.2d, v14.2d
+	add	v19.2d, v19.2d, v15.2d
+	add	v20.2d, v20.2d, v16.2d
+#endif
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -198,6 +247,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	cmp	x10, x3
 	b.ge	21f
 20:
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
@@ -206,6 +256,54 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z18.d, #1, MUL VL
 	ACCRND	z19.d, #2, MUL VL
 	ACCRND	z20.d, #3, MUL VL
+*/
+#if 1
+	// v21-v24: input
+	ldr	q21, [x1, #0]
+	ldr	q22, [x1, #16]
+	ldr	q23, [x1, #32]
+	ldr	q24, [x1, #48]
+
+	// v25-v28: secret
+	ldr	q25, [x2, #0]
+	ldr	q26, [x2, #16]
+	ldr	q27, [x2, #32]
+	ldr	q28, [x2, #48]
+	PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
+
+	// v9-v12: mixed_lo
+	eor	v3.16b, v21.16b, v25.16b
+	eor	v4.16b, v22.16b, v26.16b
+	eor	v5.16b, v23.16b, v27.16b
+	eor	v8.16b, v24.16b, v28.16b
+	//Why I can't touch v9-v12? It causes stucking.
+	//eor	v9.16b, v21.16b, v25.16b
+	//eor	v10.16b, v22.16b, v26.16b
+	//eor	v11.16b, v23.16b, v27.16b
+	//eor	v12.16b, v24.16b, v28.16b
+
+	// v13-v16: swapped
+	ext	v13.16b, v21.16b, v21.16b, #8
+	ext	v14.16b, v22.16b, v22.16b, #8
+	ext	v15.16b, v23.16b, v23.16b, #8
+	ext	v16.16b, v24.16b, v24.16b, #8
+
+	// v25-v28: mixed_hi
+	rev64	v25.4s, v9.4s
+	rev64	v26.4s,	v10.4s
+	rev64	v27.4s, v11.4s
+	rev64	v28.4s, v12.4s
+
+	umlalb	z13.d, z3.s, z25.s
+	umlalb	z14.d, z4.s, z26.s
+	umlalb	z15.d, z5.s, z27.s
+	umlalb	z16.d, z8.s, z28.s
+
+	add	v17.2d, v17.2d, v13.2d
+	add	v18.2d, v18.2d, v14.2d
+	add	v19.2d, v19.2d, v15.2d
+	add	v20.2d, v20.2d, v16.2d
+#endif
 	add	x1, x1, #64
 	add	x2, x2, #8
 	add	x10, x10, #1
@@ -219,6 +317,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	add	x2, x15, x19
 	sub	x2, x2, #64
 	sub	x2, x2, #7
+/*
 	mov	w12, #0xffffffff
 	// set -1 in z4
 	mov	z3.d, x12
@@ -227,6 +326,54 @@ ENTRY (XXH3_sve128_internal_loop)
 	ACCRND	z18.d, #1, MUL VL
 	ACCRND	z19.d, #2, MUL VL
 	ACCRND	z20.d, #3, MUL VL
+*/
+#if 1
+	// v21-v24: input
+	ldr	q21, [x1, #0]
+	ldr	q22, [x1, #16]
+	ldr	q23, [x1, #32]
+	ldr	q24, [x1, #48]
+
+	// v25-v28: secret
+	ldr	q25, [x2, #0]
+	ldr	q26, [x2, #16]
+	ldr	q27, [x2, #32]
+	ldr	q28, [x2, #48]
+	//PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
+
+	// v9-v12: mixed_lo
+	eor	v3.16b, v21.16b, v25.16b
+	eor	v4.16b, v22.16b, v26.16b
+	eor	v5.16b, v23.16b, v27.16b
+	eor	v8.16b, v24.16b, v28.16b
+	//Why I can't touch v9-v12? It causes stucking.
+	//eor	v9.16b, v21.16b, v25.16b
+	//eor	v10.16b, v22.16b, v26.16b
+	//eor	v11.16b, v23.16b, v27.16b
+	//eor	v12.16b, v24.16b, v28.16b
+
+	// v13-v16: swapped
+	ext	v13.16b, v21.16b, v21.16b, #8
+	ext	v14.16b, v22.16b, v22.16b, #8
+	ext	v15.16b, v23.16b, v23.16b, #8
+	ext	v16.16b, v24.16b, v24.16b, #8
+
+	// v25-v28: mixed_hi
+	rev64	v25.4s, v9.4s
+	rev64	v26.4s,	v10.4s
+	rev64	v27.4s, v11.4s
+	rev64	v28.4s, v12.4s
+
+	umlalb	z13.d, z3.s, z25.s
+	umlalb	z14.d, z4.s, z26.s
+	umlalb	z15.d, z5.s, z27.s
+	umlalb	z16.d, z8.s, z28.s
+
+	add	v17.2d, v17.2d, v13.2d
+	add	v18.2d, v18.2d, v14.2d
+	add	v19.2d, v19.2d, v15.2d
+	add	v20.2d, v20.2d, v16.2d
+#endif
 
 	st1d	{z17.d}, p7, [x0]
 	st1d	{z18.d}, p7, [x0, #1, MUL VL]
