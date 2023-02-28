@@ -178,7 +178,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	ldr	q26, [x2, #16]
 	ldr	q27, [x2, #32]
 	ldr	q28, [x2, #48]
-	PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
+	//PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
 
 	// v9-v12: mixed_lo
 	eor	v3.16b, v21.16b, v25.16b
@@ -269,7 +269,7 @@ ENTRY (XXH3_sve128_internal_loop)
 	ldr	q26, [x2, #16]
 	ldr	q27, [x2, #32]
 	ldr	q28, [x2, #48]
-	PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
+	//PRFD    PLDL1STRM, p7, [x1, #31, MUL VL]
 
 	// v9-v12: mixed_lo
 	eor	v3.16b, v21.16b, v25.16b
